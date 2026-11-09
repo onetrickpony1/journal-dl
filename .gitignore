@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+probe-output/
+archive/
+*.sqlite
+*.sqlite-*
+*.lock

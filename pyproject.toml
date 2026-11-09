@@ -1,0 +1,36 @@
+[project]
+name = "journal-dl"
+version = "1.0.0"
+description = "Download journal article PDFs from Wiley, Taylor & Francis and Ovid with your own library sign-in: resumable, paced, verified"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "LEGAL.md"]
+requires-python = ">=3.10"
+dependencies = ["playwright>=1.45,<2", "pypdf>=4.0"]
+keywords = ["journals", "pdf", "downloader", "library", "ezproxy", "wiley", "taylor-and-francis", "ovid"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+journal-dl = "journal_dl.frontend:main"
+ovid-dl = "journal_dl.ovid_dl:main"
+wiley-dl = "journal_dl.wiley_dl:main"
+tandf-dl = "journal_dl.tandf_dl:main"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

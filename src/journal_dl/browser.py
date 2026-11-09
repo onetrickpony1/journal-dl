@@ -1,0 +1,125 @@
+# journal-dl: download journal article PDFs with your own library sign-in.
+# Copyright (C) 2026 journal-dl contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU
+# General Public License as published by the Free Software Foundation, either version 3 of the License,
+# or (at your option) any later version. It is distributed WITHOUT ANY WARRANTY; without even the implied
+# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the LICENSE file and LEGAL.md.
+
+"""The downloader's own browser window: a dedicated Chrome profile with a local control port.
+
+The user signs in there by hand (the tools never see passwords). Every command connects to the
+same window over the Chrome DevTools Protocol on 127.0.0.1, so a sign-in is shared by all sites.
+Works with Google Chrome, Chromium or Microsoft Edge on Linux, macOS and Windows.
+"""
+import os
+import shutil
+import subprocess
+import sys
+import time
+import urllib.request
+from contextlib import contextmanager
+from pathlib import Path
+
+from . import paths, settings
+
+DEFAULT_PROFILE = Path(os.environ.get("JOURNAL_DL_PROFILE") or os.environ.get("OVID_ARCHIVE_PROFILE")
+                       or paths.data_dir() / "profile")
+
+
+def cdp_url() -> str:
+    return os.environ.get("JOURNAL_DL_CDP") or os.environ.get("OVID_ARCHIVE_CDP") or \
+        f"http://127.0.0.1:{settings.S.get('cdp_port', 9333)}"
+
+
+def candidates() -> list:
+    """Likely browser locations for this OS, best first."""
+    out = []
+    if settings.S.get("chrome"):
+        out.append(settings.S["chrome"])
+    if sys.platform == "win32":
+        roots = [os.environ.get(v) for v in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")]
+        for r in filter(None, roots):
+            out += [os.path.join(r, "Google", "Chrome", "Application", "chrome.exe"),
+                    os.path.join(r, "Chromium", "Application", "chrome.exe"),
+                    os.path.join(r, "Microsoft", "Edge", "Application", "msedge.exe")]
+    elif sys.platform == "darwin":
+        for app in ("Google Chrome", "Chromium", "Microsoft Edge"):
+            exe = "Google Chrome" if app == "Google Chrome" else app
+            out += [f"/Applications/{app}.app/Contents/MacOS/{exe}",
+                    str(Path.home() / f"Applications/{app}.app/Contents/MacOS/{exe}")]
+    else:
+        for name in ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "microsoft-edge"):
+            w = shutil.which(name)
+            if w:
+                out.append(w)
+    return out
+
+
+def find_chrome():
+    for c in candidates():
+        if c and os.path.isfile(c):
+            return c
+    return None
+
+
+def alive(timeout=2) -> bool:
+    try:
+        urllib.request.urlopen(cdp_url() + "/json/version", timeout=timeout)
+        return True
+    except Exception:
+        return False
+
+
+def start(profile: Path = DEFAULT_PROFILE, url: str = "about:blank", wait_s: float = 20) -> bool:
+    """Start the dedicated browser window if it isn't running. Returns True when reachable."""
+    if alive():
+        return True
+    exe = find_chrome()
+    if not exe:
+        raise SystemExit("Could not find Google Chrome, Chromium or Microsoft Edge. Install Chrome, or set "
+                         f'"chrome" to its path in {settings.path()}')
+    profile.mkdir(parents=True, exist_ok=True)
+    port = cdp_url().rsplit(":", 1)[1]
+    args = [exe, f"--user-data-dir={profile}", f"--remote-debugging-port={port}",
+            "--remote-debugging-address=127.0.0.1", "--no-first-run", "--no-default-browser-check", url]
+    kw = dict(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+    if os.name == "nt":
+        kw["creationflags"] = 0x00000008 | 0x00000200      # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    else:
+        kw["start_new_session"] = True
+    subprocess.Popen(args, **kw)
+    end = time.monotonic() + wait_s
+    while time.monotonic() < end:
+        time.sleep(0.5)
+        if alive():
+            return True
+    return False
+
+
+def connect(p):
+    """Playwright BrowserContext of the running window (starting it if needed)."""
+    if not alive():
+        print("Starting the downloader's browser window...")
+        if not start():
+            raise SystemExit("The browser window did not start. Try again, or start it with: journal-dl --browser")
+    return p.chromium.connect_over_cdp(cdp_url()).contexts[0]
+
+
+# --- used by the low-level `ovid-archive login/probe` commands -------------------------------
+@contextmanager
+def session(profile: Path = DEFAULT_PROFILE, headless: bool = False):
+    from playwright.sync_api import sync_playwright
+    profile.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as p:
+        exe = find_chrome()
+        ctx = p.chromium.launch_persistent_context(str(profile), executable_path=exe, headless=headless,
+                                                   accept_downloads=True, viewport=None)
+        try:
+            yield ctx
+        finally:
+            ctx.close()
+
+
+def current_page(ctx):
+    return ctx.pages[-1] if ctx.pages else ctx.new_page()
