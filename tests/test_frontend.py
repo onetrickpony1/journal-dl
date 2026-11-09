@@ -73,13 +73,16 @@ def test_platform_folders(monkeypatch, tmp_path):
 
 def test_show_path_aliases(monkeypatch):
     monkeypatch.setitem(settings.S, "path_aliases", [["/mnt/share/H", "H:"]])
-    assert system.show_path(Path("/mnt/share/H/Journals/A B")) == "/mnt/share/H/Journals/A B  (H:\\Journals\\A B)"
-    assert system.show_path(Path("/elsewhere")) == "/elsewhere"
+    p = Path("/mnt/share/H/Journals/A B")
+    assert system.show_path(p) == f"{p}  (H:\\Journals\\A B)"
+    assert system.show_path(Path("/elsewhere")) == str(Path("/elsewhere"))
+    assert system.show_path(Path("/mnt/share/Hx")) == str(Path("/mnt/share/Hx"))   # not a folder boundary
 
 
 def test_launcher_and_schedule_files(monkeypatch, tmp_path):
     monkeypatch.setattr(system, "desktop_dir", lambda: tmp_path)
-    for plat, name in (("linux", "journal-dl.desktop"), ("darwin", "Journal Downloader.command")):
+    for plat, name in (("linux", "journal-dl.desktop"), ("darwin", "Journal Downloader.command"),
+                       ("win32", "Journal Downloader.bat")):
         monkeypatch.setattr(sys, "platform", plat)
         lf = system.launcher_files()
         assert any(p.name == name for p in lf)
@@ -92,13 +95,11 @@ def test_launcher_and_schedule_files(monkeypatch, tmp_path):
     assert any("OnCalendar=*-*-* 09:00:00" in b for b in units.values())
 
 
-def test_windows_name_room(monkeypatch):
-    monkeypatch.setattr(files.os, "name", "nt")
+def test_windows_name_room():
     deep = Path("C:/" + "x" * 180)
-    assert files.room_for_name(deep) < 110
-    assert files.room_for_name(Path("C:/a")) == 110
-    monkeypatch.setattr(files.os, "name", "posix")
-    assert files.room_for_name(deep) == 110
+    assert files.room_for_name(deep, windows=True) < 110
+    assert files.room_for_name(Path("C:/a"), windows=True) == 110
+    assert files.room_for_name(deep, windows=False) == 110
 
 
 def test_settings_proxy_naming(monkeypatch):

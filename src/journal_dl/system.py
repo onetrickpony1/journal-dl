@@ -42,9 +42,12 @@ def show_path(path: Path) -> str:
     """The path, plus how it looks on another computer when settings has "path_aliases",
     e.g. [["/mnt/share/H", "H:"]] -> '/mnt/share/H/X  (H:\\X)'."""
     s = str(path)
+    norm = s.replace("\\", "/")
     for prefix, alias in settings.S.get("path_aliases") or []:
-        if s.startswith(prefix):
-            rest = s[len(prefix):].lstrip("/\\")
+        pre = prefix.replace("\\", "/").rstrip("/")
+        same = norm.lower().startswith(pre.lower()) if sys.platform == "win32" else norm.startswith(pre)
+        if pre and same and (len(norm) == len(pre) or norm[len(pre)] == "/"):
+            rest = norm[len(pre):].lstrip("/")
             win = alias.endswith(":") or "\\" in alias
             other = (alias.rstrip("\\/") + ("\\" if win else "/") + (rest.replace("/", "\\") if win else rest))
             return f"{s}  ({other})"
@@ -114,7 +117,7 @@ def launcher_files() -> dict:
     """{path: (content, executable)} for this OS."""
     cmd = self_command("journal-dl")
     out = {}
-    if os.name == "nt":
+    if sys.platform == "win32":
         body = f'@echo off\r\ntitle Journal Downloader\r\n"{cmd[0]}" -m journal_dl --easy\r\npause\r\n'
         out[desktop_dir() / "Journal Downloader.bat"] = (body, False)
     elif sys.platform == "darwin":

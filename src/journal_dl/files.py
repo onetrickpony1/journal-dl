@@ -121,9 +121,9 @@ def article_filename(seq: int, authors: str | None, title: str | None, provider_
     return name + ".pdf"
 
 
-def room_for_name(folder: Path) -> int:
+def room_for_name(folder: Path, windows: bool | None = None) -> int:
     """Longest title that keeps the whole path inside Windows' classic 260-character limit
     (other systems: the usual 110)."""
-    if os.name != "nt":
+    if not (os.name == "nt" if windows is None else windows):
         return 110
     return max(30, min(110, 259 - len(str(folder)) - 1 - 45))      # 45 = number, surname, ".pdf", spare
