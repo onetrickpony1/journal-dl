@@ -13,4 +13,6 @@ First public version.
 - PDFs already saved from another site (same DOI) are copied instead of downloaded again.
 - Speed presets and a full pacing model (ranges, spread, jitter, breaks, hourly/daily caps, hours, back-off).
 - Licensed under the GNU GPL v3.0 or later; legal notice and terms of use (LEGAL.md), summarised in the README.
+- One-line installers (install.ps1, install.sh): Python, packages, PATH, browser and desktop icon, no admin rights;
+  `--install-browser` downloads a private Chromium when no Chrome/Chromium/Edge is installed.
 - Linux, macOS and Windows: per-OS folders, run lock, browser discovery, launchers, schedules, path-length limits.

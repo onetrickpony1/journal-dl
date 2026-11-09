@@ -80,7 +80,7 @@ def doctor(sites, a=None) -> int:
     # browser
     exe = browser.find_chrome()
     line(OK if exe else BAD, f"browser: {exe}" if exe else
-         "no Chrome, Chromium or Edge found (install Chrome, or set \"chrome\" in settings)")
+         "no Chrome, Chromium or Edge found (install one, or run: journal-dl --install-browser)")
     if browser.alive():
         line(OK, f"browser window is open ({browser.cdp_url()})")
         from playwright.sync_api import sync_playwright

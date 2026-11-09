@@ -60,7 +60,34 @@ def find_chrome():
     for c in candidates():
         if c and os.path.isfile(c):
             return c
-    return None
+    return bundled_chromium()
+
+
+def bundled_chromium():
+    """The private Chromium installed by `journal-dl --install-browser` (Playwright's build), if any."""
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            path = p.chromium.executable_path
+        return path if path and os.path.isfile(path) else None
+    except Exception:
+        return None
+
+
+def install_browser() -> bool:
+    """Download a private Chromium for journal-dl (no admin rights; about 150 MB)."""
+    print("Downloading a private Chromium for journal-dl (about 150 MB)...")
+    cmd = [sys.executable, "-m", "playwright", "install", "chromium"]
+    r = subprocess.run(cmd + ["--no-shell"])          # the full browser only (a window is needed to sign in)
+    if r.returncode != 0:
+        r = subprocess.run(cmd)                       # older Playwright without --no-shell
+    if r.returncode != 0:
+        return False
+    if sys.platform.startswith("linux"):
+        print("If it doesn't start, it may need some system libraries. Install Chrome or Chromium from your "
+              "distribution instead, or run (needs admin):\n"
+              f"  sudo {sys.executable} -m playwright install-deps chromium")
+    return bundled_chromium() is not None
 
 
 def alive(timeout=2) -> bool:
@@ -77,8 +104,8 @@ def start(profile: Path = DEFAULT_PROFILE, url: str = "about:blank", wait_s: flo
         return True
     exe = find_chrome()
     if not exe:
-        raise SystemExit("Could not find Google Chrome, Chromium or Microsoft Edge. Install Chrome, or set "
-                         f'"chrome" to its path in {settings.path()}')
+        raise SystemExit("Could not find Google Chrome, Chromium or Microsoft Edge. Install one, or run "
+                         f'journal-dl --install-browser, or set "chrome" to its path in {settings.path()}')
     profile.mkdir(parents=True, exist_ok=True)
     port = cdp_url().rsplit(":", 1)[1]
     args = [exe, f"--user-data-dir={profile}", f"--remote-debugging-port={port}",

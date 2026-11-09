@@ -76,20 +76,35 @@ you agree to that notice. In short:
 
 ## Install
 
-You need **Python 3.10+** and **Google Chrome** (Chromium or Microsoft Edge also work).
+One line, no admin rights needed. It installs everything journal-dl needs: its own Python if yours is missing
+or too old, the packages, and a private Chromium if you have no Chrome, Chromium or Edge. It also offers a
+desktop icon.
 
+**Windows** (PowerShell):
 ```
-pipx install git+https://github.com/onetrickpony1/journal-dl
-```
-
-or, in a virtual environment:
-
-```
-python -m venv .venv
-.venv/bin/pip install .            # Windows: .venv\Scripts\pip install .
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/onetrickpony1/journal-dl/main/install.ps1 | iex"
 ```
 
-journal-dl drives your installed Chrome, so there is no separate browser download.
+**macOS and Linux** (Terminal):
+```
+curl -LsSf https://raw.githubusercontent.com/onetrickpony1/journal-dl/main/install.sh | sh
+```
+
+Then open a new terminal window. To update, run the same line again. To uninstall: `uv tool uninstall journal-dl`.
+
+<details><summary>What the installer does, and other ways to install</summary>
+
+The installer ([install.ps1](install.ps1), [install.sh](install.sh)) installs [uv](https://docs.astral.sh/uv/),
+a Python manager, if it's missing. uv then installs journal-dl in an isolated environment with its own
+Python 3.12 if needed, and puts `journal-dl`, `ovid-dl`, `wiley-dl` and `tandf-dl` on your PATH. If no browser
+is found, it runs `journal-dl --install-browser`. Read the scripts first if you like: they are short.
+
+With Python 3.10+ already installed you can also use `pipx install` or `pip install` with
+`https://github.com/onetrickpony1/journal-dl/archive/refs/heads/main.zip`.
+
+On Linux without Chrome or Chromium, the private Chromium may need a few system libraries; installing Chromium
+from your distribution is the easiest fix.
+</details>
 
 ## First run
 

@@ -112,6 +112,8 @@ def build_parser(site=None):
     g.add_argument("--setup", action="store_true", help="set archive folder, library proxy and browser")
     g.add_argument("--browser", action="store_true", help="open the downloader's browser window (to sign in)")
     g.add_argument("--install-launcher", action="store_true", help="add a 'Journal Downloader' desktop icon")
+    g.add_argument("--install-browser", action="store_true", help="download a private Chromium (only needed "
+                                                                  "without Chrome, Chromium or Edge)")
     pacing.add_arguments(ap)
     ap.add_argument("--version", action="version", version=f"{prog} {__version__}")
     return ap
@@ -558,6 +560,12 @@ def _dispatch(ap, a, site, sites, argv):
         print("Browser window is open: sign in to your library there if needed." if ok else
               "The browser window did not start (see --doctor).")
         return 0 if ok else 1
+    if a.install_browser:
+        found = browser.find_chrome()
+        if found and found != browser.bundled_chromium():
+            print(f"A browser is already installed and will be used: {found}")
+            return 0
+        return 0 if browser.install_browser() else 1
     if a.install_launcher:
         system.install_launcher()
         return 0

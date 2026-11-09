@@ -82,6 +82,7 @@ notification and the run waits 30 minutes for you to sign in.
 | `--setup` | archive folder, library proxy, sign-in hosts, institution name, Ovid library route, browser |
 | `--doctor` | Python and packages, settings, archive folder (writable, free space), browser, sign-in on each site, speed, followed journals, unfinished run |
 | `--browser` | open the downloader's browser window, e.g. to sign in before a scheduled run |
+| `--install-browser` | download a private Chromium (only needed when no Chrome, Chromium or Edge is installed) |
 
 ## Speed options
 

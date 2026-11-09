@@ -19,3 +19,31 @@ jobs:
       - run: python -m pytest -q
       - run: journal-dl --help
       - run: wiley-dl --version
+
+  installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      JOURNAL_DL_SOURCE: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: install.sh
+        if: runner.os != 'Windows'
+        run: |
+          sh install.sh
+          "$HOME/.local/bin/journal-dl" --version
+          "$HOME/.local/bin/wiley-dl" --version
+          "$HOME/.local/bin/journal-dl" --doctor
+      - name: install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy ByPass -File install.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & "$env:USERPROFILE\.local\bin\journal-dl.exe" --version
+          & "$env:USERPROFILE\.local\bin\tandf-dl.exe" --version
+          & "$env:USERPROFILE\.local\bin\journal-dl.exe" --doctor
+          if ($LASTEXITCODE -ne 0) { exit 1 }
