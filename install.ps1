@@ -10,7 +10,9 @@
 #   5. offers a "Journal Downloader" desktop icon
 # Run it again to update. Uninstall: uv tool uninstall journal-dl
 
-$ErrorActionPreference = "Stop"
+# "Continue": Windows PowerShell turns harmless messages from programs into errors under "Stop";
+# every step checks $LASTEXITCODE instead
+$ErrorActionPreference = "Continue"
 $Source = if ($env:JOURNAL_DL_SOURCE) { $env:JOURNAL_DL_SOURCE } else { "journal-dl @ https://github.com/onetrickpony1/journal-dl/archive/refs/heads/main.zip" }
 $Python = if ($env:JOURNAL_DL_PYTHON) { $env:JOURNAL_DL_PYTHON } else { "3.12" }
 
@@ -27,7 +29,8 @@ else {
     $cand = Join-Path $env:USERPROFILE ".local\bin\uv.exe"
     if (-not (Test-Path $cand)) {
         Say "Installing uv (Python manager, from astral.sh)"
-        Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
+        try { Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression }
+        catch { Fail "could not download uv: $($_.Exception.Message)" }
     }
     if (Test-Path $cand) { $UV = $cand } else { Fail "uv was installed but can't be found; open a new window and run this again" }
 }
@@ -38,7 +41,7 @@ Say "Installing journal-dl and its packages (Python $Python is downloaded if nee
 if ($LASTEXITCODE -ne 0) { Fail "installing journal-dl failed (see above)" }
 
 # 3. PATH
-& $UV tool update-shell *> $null
+try { & $UV tool update-shell 2>&1 | Out-Null } catch { }
 $Bin = (& $UV tool dir --bin).Trim()
 $JDL = Join-Path $Bin "journal-dl.exe"
 if (-not (Test-Path $JDL)) { Fail "journal-dl was installed but $JDL is missing" }
