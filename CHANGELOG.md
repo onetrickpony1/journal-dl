@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Custom speed (`--easy`): a value typed with brackets, like the `[5s-12s]` the prompt shows, is now accepted
+  (`[1m-5m]` was rejected as `'[1m'`).
+- Custom speed (`--easy`): pressing Enter at "Only download between" with no hours set no longer repeats
+  the question forever.
+
 ## 1.0.0 — 2026-11-09
 
 First public version.
