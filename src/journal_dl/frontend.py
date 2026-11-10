@@ -20,7 +20,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import __version__, browser, files, notify, pacing, settings, state, system
+from . import __version__, browser, files, notify, pacing, settings, signin, state, system
 from .selection import make_confirm, parse_when
 from .sites import ORDER, SITES
 
@@ -629,6 +629,13 @@ def _dispatch(ap, a, site, sites, argv):
             checks.setup()
             print()
         ok = browser.start(url="about:blank")
+        if ok and signin.needed():
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as p:
+                ok = signin.sign_in_once(browser.connect(p))
+            print("Signed in through your library: downloads can start without you." if ok else
+                  "Not signed in yet: the next run will ask again.")
+            return 0 if ok else 1
         print("Browser window is open: sign in to your library there if needed." if ok else
               "The browser window did not start (see --doctor).")
         return 0 if ok else 1

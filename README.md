@@ -115,7 +115,8 @@ journal-dl --setup      # archive folder + your library's proxy address (once; i
 journal-dl --easy       # the guide: pick a journal, years, speed, issues
 ```
 
-A browser window opens. Sign in to your library there when asked; the sign-in is kept for later runs.
+A browser window opens. Sign in to your library there when asked: once covers Wiley, Taylor & Francis and
+Ovid, and the sign-in is kept for later runs.
 `journal-dl --doctor` checks that everything is ready.
 
 **Library proxy.** Off campus, most libraries give access through an EZproxy address. Open any journal through
@@ -174,8 +175,8 @@ To limit a single run instead, use `--max N`, which counts every site together.
 All four commands take the same options, but the sites themselves differ in a few ways:
 - **Taylor & Francis** gives no month for its issues, so `2026-11` is refused there. Use the year with `-p`, or
   `--issue "34(2)"`.
-- **Ovid** is reached through your library catalogue. Set it up with `--setup`, or open Ovid yourself in the
-  browser window the first time.
+- **Ovid** opens through your library proxy (or directly on campus) by itself. If your library only reaches Ovid
+  through its catalogue, set that up with `--setup`, or open Ovid yourself in the browser window the first time.
 - **Ovid** issue pages are read by clicking through them, so Ovid runs are slower than Wiley or T&F runs.
 
 ## Where things go

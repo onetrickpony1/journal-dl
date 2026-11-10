@@ -16,7 +16,7 @@
 import time
 from urllib.parse import quote
 
-from . import browser, ovid, paths, settings, tandf, wiley
+from . import browser, ovid, paths, settings, signin, tandf, wiley
 
 SIGNIN_WAIT_S = 30 * 60
 
@@ -34,6 +34,10 @@ class Site:
 
 
 # ---------------------------------------------------------------- Ovid
+OVID_HOST = "ovidsp.ovid.com"
+OVID_START = "/ovidweb.cgi?T=JS&PAGE=main&NEWS=n"     # Ovid's start page; signs in by institution address
+
+
 class OvidSite(Site):
     name, label, prog = "ovid", "Ovid", "ovid-dl"
     has_months = True
@@ -53,6 +57,7 @@ class OvidSite(Site):
 
     def session(self, p):
         ctx = browser.connect(p)
+        signin.sign_in_once(ctx)
         tab = self._tab(ctx)
         if tab:
             try:
@@ -66,8 +71,9 @@ class OvidSite(Site):
         return ctx, self._through_library(ctx)
 
     def _through_library(self, ctx):
-        """No Ovid tab yet: open Ovid through the library's journal search (any Ovid journal works
-        as the door), or wait for the user to open Ovid themselves when no library is set."""
+        """No Ovid tab yet: open Ovid through the library's journal search when one is set (any Ovid journal
+        works as the door); else Ovid's own start page, through the proxy when there is one (Ovid recognises
+        the institution by the proxy's or campus address); else wait for the user to open Ovid."""
         search, door = settings.S.get("library_journal_search"), settings.S.get("library_ovid_door")
         page = ctx.new_page()
         if search and door:
@@ -81,8 +87,14 @@ class OvidSite(Site):
             except Exception:
                 print("Open Ovid from your library's website in the browser window (waiting up to 30 min)...")
         else:
-            print("Open Ovid through your library in the browser window, signing in if asked "
-                  "(waiting up to 30 min). Tip: --setup can store your library's address.")
+            route = "proxy" if signin.needed() else "direct"
+            try:
+                page.goto(settings.site_base(OVID_HOST, route) + OVID_START, wait_until="load", timeout=60000)
+            except Exception:
+                pass
+            if not self._tab(ctx):
+                print("Open Ovid through your library in the browser window, signing in if asked "
+                      "(waiting up to 30 min). Tip: --setup can store your library's address.")
         end = time.monotonic() + SIGNIN_WAIT_S
         while time.monotonic() < end:
             time.sleep(2)
@@ -183,6 +195,7 @@ class PublisherSite(Site):
     def session(self, p):
         m = self.m
         ctx = browser.connect(p)
+        signin.sign_in_once(ctx)
         tab = self._tab(ctx) or ctx.new_page()
         self.choose_route(tab)
         if not self._on_site(tab):
@@ -199,13 +212,18 @@ class PublisherSite(Site):
             from . import notify
             notify.send("Sign-in needed", f"Sign in to {m.LABEL} in the downloader's browser window.")
             end = time.monotonic() + SIGNIN_WAIT_S
+            last_reload = time.monotonic()
             while time.monotonic() < end:
                 time.sleep(3)
                 try:
                     if m.HOST_HINT in tab.url and m.signed_in(tab):
                         break
-                    if m.HOST_HINT in tab.url and not any(h in tab.url for h in m.login_hints()):
+                    # look again now and then, not every few seconds: a reload would wipe what the user is
+                    # doing on the page (a cookie notice, a sign-in form opened from the site)
+                    if (m.HOST_HINT in tab.url and not any(h in tab.url for h in m.login_hints())
+                            and time.monotonic() - last_reload > 60):
                         tab.reload()
+                        last_reload = time.monotonic()
                 except Exception:
                     pass
             else:

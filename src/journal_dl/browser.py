@@ -148,5 +148,11 @@ def session(profile: Path = DEFAULT_PROFILE, headless: bool = False):
             ctx.close()
 
 
+def all_text(page) -> str:
+    """Every word on the page, also those in menus, banners or behind a cookie notice. inner_text() only gives
+    what is visible, and a consent overlay or a collapsed menu (T&F's "Access provided by ...") hides it."""
+    return page.evaluate("() => document.body ? document.body.textContent : ''") or ""
+
+
 def current_page(ctx):
     return ctx.pages[-1] if ctx.pages else ctx.new_page()

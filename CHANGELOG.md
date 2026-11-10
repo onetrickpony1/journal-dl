@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- One sign-in for every site: with a library proxy, a run first checks the proxy's sign-in and, if needed,
+  asks once (one notification, one sign-in page) instead of each site waiting for its own. `--browser` does
+  the same, to sign in ahead of a scheduled run.
+- Ovid opens through the proxy (or on campus) by itself; the library catalogue settings are now optional.
+- Taylor & Francis showed "not signed in" while signed in: its "Access provided by" line sits in a hidden
+  menu, and a cookie notice hid the rest. Sign-in checks now read the whole page, and a site waiting for a
+  sign-in reloads once a minute instead of every 3 seconds.
 - First run: `--setup` can find your library's proxy and sign-in page itself. You open one article through
   your library in the browser window; it reads both from the addresses (no need to know `proxy.….edu`).
   `--browser` now runs the setup first when there are no settings, and a `--background` run without
