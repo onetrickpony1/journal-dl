@@ -1,25 +1,32 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-11-10
 
-- One sign-in for every site: with a library proxy, a run first checks the proxy's sign-in and, if needed,
+### Signing in and first run
+- **One sign-in for every site.** With a library proxy, a run first checks the proxy's sign-in and, if needed,
   asks once (one notification, one sign-in page) instead of each site waiting for its own. `--browser` does
-  the same, to sign in ahead of a scheduled run.
-- Ovid opens through the proxy (or on campus) by itself; the library catalogue settings are now optional.
-- Taylor & Francis showed "not signed in" while signed in: its "Access provided by" line sits in a hidden
-  menu, and a cookie notice hid the rest. Sign-in checks now read the whole page, and a site waiting for a
-  sign-in reloads once a minute instead of every 3 seconds.
-- First run: `--setup` can find your library's proxy and sign-in page itself. You open one article through
-  your library in the browser window; it reads both from the addresses (no need to know `proxy.….edu`).
-  `--browser` now runs the setup first when there are no settings, and a `--background` run without
-  settings stops and says to run `--setup` instead of waiting for a sign-in that can't work.
-- Library access `auto` (new default when a proxy is set): at the start of each run journal-dl checks whether
+  the same, so you can sign in ahead of a scheduled run.
+- **`--setup` finds your library's proxy itself.** You open one article through your library in the browser
+  window; it reads the proxy and sign-in page from the addresses (no need to know `proxy.….edu`). `--browser`
+  runs the setup first when there are no settings, and a `--background` run without settings stops and says
+  to run `--setup` instead of waiting for a sign-in that can't work.
+- **Library access `auto`** (new default when a proxy is set): at the start of each run journal-dl checks whether
   Wiley or Taylor & Francis already recognise your institution (on campus or VPN) and then goes direct instead
   of through the proxy. A run never switches route mid-way; if direct access is lost it pauses, and `--resume`
   checks again. New `access` setting, `--direct` / `--via-proxy`, and `--doctor` shows the route.
-- New speed preset `superslow`: 5-15 min between PDFs, 30-60 min break every 4-8, at most 6/hour and 50/day.
-- A journal found on several sites is now downloaded alternating between them, each issue from a random site,
-  into the same folders (`--site` pins one site; `--alternate` looks again for a journal remembered on one).
+- **Ovid opens through the proxy** (or on campus) by itself; the library catalogue settings are now optional.
+
+### Downloading
+- **New speed preset `superslow`:** 5-15 min between PDFs, a 30-60 min break every 4-8, at most 6/hour and 50/day.
+  The README now spells out what the hourly and daily limits count (PDFs per site, rolling window, all runs).
+- **Alternating between sites.** A journal found on several sites is downloaded issue by issue from a randomly
+  chosen one of them, into the same folders. An issue started on one site is finished there; one complete on
+  any site is skipped. `--site` pins one site; `--alternate` looks again for a journal remembered on one.
+
+### Fixes
+- Taylor & Francis showed "not signed in" while signed in: its "Access provided by" line sits in a hidden
+  menu, and a cookie notice hid the rest. Sign-in checks now read the whole page, and a site waiting for a
+  sign-in reloads once a minute instead of every 3 seconds.
 - Custom speed (`--easy`): a value typed with brackets, like the `[5s-12s]` the prompt shows, is now accepted
   (`[1m-5m]` was rejected as `'[1m'`).
 - Custom speed (`--easy`): pressing Enter at "Only download between" with no hours set no longer repeats
