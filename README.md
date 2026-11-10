@@ -111,7 +111,7 @@ from your distribution is the easiest fix.
 ## First run
 
 ```
-journal-dl --setup      # archive folder + your library's proxy address (once)
+journal-dl --setup      # archive folder + your library's proxy address (once; it can find the proxy for you)
 journal-dl --easy       # the guide: pick a journal, years, speed, issues
 ```
 

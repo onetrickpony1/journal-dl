@@ -623,6 +623,11 @@ def _dispatch(ap, a, site, sites, argv):
     if a.doctor:
         return checks.doctor(sites, a)
     if a.browser:
+        if not settings.exists() and _interactive():
+            print("First run: a few quick questions, so the window signs you in through your library "
+                  "(change them later with --setup).\n")
+            checks.setup()
+            print()
         ok = browser.start(url="about:blank")
         print("Browser window is open: sign in to your library there if needed." if ok else
               "The browser window did not start (see --doctor).")
@@ -660,10 +665,17 @@ def _dispatch(ap, a, site, sites, argv):
         return 0
 
     needs_web = a.easy or a.search or a.journal or a.update or a.resume
-    if needs_web and not settings.exists() and _interactive():
-        print("First run: a few quick questions (change them later with --setup).\n")
-        checks.setup()
-        print()
+    if needs_web and not settings.exists():
+        if _interactive():
+            print("First run: a few quick questions (change them later with --setup).\n")
+            checks.setup()
+            print()
+        elif a.background:
+            raise SystemExit("journal-dl isn't set up yet: run  journal-dl --setup  in a terminal first "
+                             "(it finds your library's proxy), then start the background run.")
+        else:
+            print(f"Note: journal-dl isn't set up yet ({settings.path()} is missing), so sites are opened "
+                  "directly, without your library's proxy. Run  journal-dl --setup  once in a terminal.")
 
     if a.background:
         if a.easy or a.pick:

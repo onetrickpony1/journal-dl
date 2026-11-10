@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- First run: `--setup` can find your library's proxy and sign-in page itself. You open one article through
+  your library in the browser window; it reads both from the addresses (no need to know `proxy.….edu`).
+  `--browser` now runs the setup first when there are no settings, and a `--background` run without
+  settings stops and says to run `--setup` instead of waiting for a sign-in that can't work.
 - Library access `auto` (new default when a proxy is set): at the start of each run journal-dl checks whether
   Wiley or Taylor & Francis already recognise your institution (on campus or VPN) and then goes direct instead
   of through the proxy. A run never switches route mid-way; if direct access is lost it pauses, and `--resume`
