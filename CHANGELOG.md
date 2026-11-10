@@ -6,6 +6,9 @@
   Wiley or Taylor & Francis already recognise your institution (on campus or VPN) and then goes direct instead
   of through the proxy. A run never switches route mid-way; if direct access is lost it pauses, and `--resume`
   checks again. New `access` setting, `--direct` / `--via-proxy`, and `--doctor` shows the route.
+- New speed preset `superslow`: 5-15 min between PDFs, 30-60 min break every 4-8, at most 6/hour and 50/day.
+- A journal found on several sites is now downloaded alternating between them, each issue from a random site,
+  into the same folders (`--site` pins one site; `--alternate` looks again for a journal remembered on one).
 - Custom speed (`--easy`): a value typed with brackets, like the `[5s-12s]` the prompt shows, is now accepted
   (`[1m-5m]` was rejected as `'[1m'`).
 - Custom speed (`--easy`): pressing Enter at "Only download between" with no hours set no longer repeats

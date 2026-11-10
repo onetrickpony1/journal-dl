@@ -23,7 +23,7 @@ def test_same_options_on_every_site_command():
     per_site = {name: options(frontend.build_parser(frontend.SITES[name])) for name in frontend.ORDER}
     first = per_site["wiley"]
     assert all(o == first for o in per_site.values())
-    assert options(frontend.build_parser(None)) - first == {"--site"}      # journal-dl: one extra
+    assert options(frontend.build_parser(None)) - first == {"--site", "--alternate"}   # journal-dl only
 
 
 def test_month_help_only_where_sites_have_months():

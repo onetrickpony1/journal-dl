@@ -36,8 +36,10 @@ Start? [Y/n]
   downloaded twice.
 - **Tidy folders:** `<Journal>/<year>/Vol 79 No 1 - Spring 2026/01 - <Title> - <Surname>.pdf`
 - **Every PDF is checked** (real PDF, complete, readable) before it is kept, and `--verify` re-checks them all.
-- **Paced like a person.** Speed presets (fast, normal, careful, slow), random delays, breaks, hourly and daily
-  limits, allowed hours, and automatic slow-down when a site pushes back.
+- **Paced like a person.** Speed presets (fast, normal, careful, slow, superslow), random delays, breaks, hourly
+  and daily limits, allowed hours, and automatic slow-down when a site pushes back.
+- **Spreads the load.** A journal on more than one site is downloaded issue by issue from a randomly chosen one
+  of them, into one folder.
 - **Only new issues:** `--new`, or follow journals and run `--update` (by hand or every week with `--schedule`).
 - **Background runs** with desktop notifications when a run ends, stops or needs you to sign in again. Phone
   notifications through ntfy are optional.
@@ -159,6 +161,13 @@ journal-dl "Journal name" 2026 --delay 20-60 --break-every 10-20 --break-for 5m-
 | normal (default) | 5-12 s | 1-3 min every 25-40 | none |
 | careful | 10-25 s | 3-8 min every 15-30 | 120/hour |
 | slow | 30-90 s | 5-15 min every 10-20 | 40/hour, 300/day |
+| superslow | 5-15 min | 30-60 min every 4-8 | 6/hour, 50/day |
+
+**What the limits count.** The hourly and daily limits count PDFs downloaded from one site in the last
+60 minutes / 24 hours (rolling, not per calendar day), across all runs and all journals on that site.
+PDFs copied from another site's download, or found already in the folder, don't count. Each site has its
+own count: when a journal alternates between two sites, `50/day` allows up to 50 from each, 100 in all.
+To limit a single run instead, use `--max N`, which counts every site together.
 
 ### Differences between the sites
 

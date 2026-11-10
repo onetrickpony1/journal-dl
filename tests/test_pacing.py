@@ -196,3 +196,13 @@ def test_from_args_overrides(monkeypatch, tmp_path):
     p = pacing.from_args(a)
     assert p.delay == (20, 40) and p.mode == "normal" and p.jitter == 0.1
     assert p.max_per_hour == 120 and p.preset == "custom"   # rest of the careful preset kept
+
+
+
+def test_superslow_is_slower_than_slow():
+    slow, ss = pacing.preset("slow"), pacing.preset("superslow")
+    assert ss.delay[0] > slow.delay[1]
+    assert ss.max_per_hour < slow.max_per_hour
+    assert ss.max_per_day == 50
+    assert "max 50/day" in ss.describe()
+    assert pacing.estimate(ss, 100)[1] >= 86400          # 100 PDFs need at least two days

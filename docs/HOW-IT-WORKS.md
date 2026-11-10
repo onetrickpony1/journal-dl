@@ -38,7 +38,7 @@ downloading it again.
 
 `pacing.py` decides every wait: the delay before each download (a range, spread uniformly, normally or
 exponentially, plus jitter), delays between page loads, breaks, rolling hourly and daily limits counted from
-the database across runs, an allowed daily time window, and AIMD back-off. On HTTP 429/503 it multiplies the
+that site's database across runs and journals (one count per site; copied or adopted files don't count), an allowed daily time window, and AIMD back-off. On HTTP 429/503 it multiplies the
 delay and honours `Retry-After`; successes gradually undo it. The same model produces the time estimate.
 
 ## The sites
@@ -88,6 +88,7 @@ issue in the browser window and run `python -m journal_dl.probe`.
 |---|---|
 | `frontend.py` | command line shared by all commands; downloads, status, resume, guide, follow/update |
 | `sites.py` | the three sites behind one interface |
+| `multisite.py` | one journal on several sites: issues matched across sites, each taken from a random one |
 | `engine.py` | run flow, plan and estimate, per-article download, checks, reports, run lock |
 | `runner.py` / `site_runner.py` | Ovid's page handling / Wiley and T&F's |
 | `ovid.py`, `wiley.py`, `tandf.py` | reading each site's pages |

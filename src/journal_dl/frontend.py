@@ -9,7 +9,8 @@
 """Command line shared by journal-dl, ovid-dl, wiley-dl and tandf-dl.
 
 Every command takes the same options. journal-dl also takes --site and, without it, finds the
-journal on whichever site has it. Differences that come from the sites themselves:
+journal on whichever site has it; a journal on several sites is downloaded alternating between them
+at random, issue by issue (multisite.py), unless one site is chosen. Differences that come from the sites themselves:
 - Taylor & Francis gives no months for its issues, so YYYY-MM is refused there (use -p or --issue).
 """
 import argparse
@@ -87,7 +88,10 @@ def build_parser(site=None):
     g.add_argument("-o", "--output", metavar="FOLDER", help=f"archive folder (now: {settings.output_dir()})")
     g.add_argument("--open", action="store_true", help="open the journal's folder when done (alone: the archive folder)")
     if site is None:
-        g.add_argument("--site", choices=ORDER, help="use this site (default: find the journal on any of them)")
+        g.add_argument("--site", choices=ORDER, help="use only this site (default: find the journal on any of them)")
+        g.add_argument("--alternate", action="store_true",
+                       help="look on every site again and, if the journal is on several, take each issue from "
+                            "one of them at random (the default when found on several)")
 
     g = ap.add_argument_group("progress and files")
     g.add_argument("--status", action="store_true", help="what has been downloaded, and any unfinished run")
@@ -138,15 +142,16 @@ def archive_root(a) -> Path:
 
 
 # ---------------------------------------------------------------- finding the site
-def resolve(a, journal):
-    """-> Site for a journal: --site, the per-site command, remembered, or looked up on every site."""
+def resolve(a, journal) -> list:
+    """-> the site(s) for a journal: --site, the per-site command, remembered, or looked up on every site.
+    More than one site: download alternating between them."""
     if getattr(a, "site_obj", None):
-        return a.site_obj
+        return [a.site_obj]
     if getattr(a, "site", None):
-        return SITES[a.site]
-    known = state.known_site(journal)
-    if known:
-        return SITES[known]
+        return [SITES[a.site]]
+    known = [n for n in state.known_sites(journal) if n in SITES]
+    if known and not (getattr(a, "alternate", False) and len(known) < 2):
+        return [SITES[n] for n in known]
     from playwright.sync_api import sync_playwright
     hits, near = [], {}
     with sync_playwright() as p:
@@ -173,29 +178,36 @@ def resolve(a, journal):
         for label, names in near.items():
             print(f"Close matches on {label}:\n  " + "\n  ".join(names[:10]))
         raise SystemExit(EXIT_NOT_FOUND)
+    chosen = [h[0] for h in hits]
     if len(hits) > 1:
         print(f"\n{hits[0][1]['title']} is on {len(hits)} sites:")
         for n, (site, res) in enumerate(hits, 1):
-            print(f"  {n}. {site.label}" + ("  (publisher's own site)" if site.name != "ovid" else ""))
-        choice = 1
+            print(f"  {n}. only {site.label}" + ("  (publisher's own site)" if site.name != "ovid" else ""))
+        print(f"  A. all {len(hits)}, each issue from one of them at random (spreads the load)")
         if _interactive() and not a.yes:
-            ans = input(f"Which one? [1-{len(hits)}, Enter = 1] ").strip()
-            choice = int(ans) if ans.isdigit() and 1 <= int(ans) <= len(hits) else 1
-        site = hits[choice - 1][0]
-    else:
-        site = hits[0][0]
-    state.remember_site(hits[0][1]["title"], site.name)
-    state.remember_site(journal, site.name)
-    print(f"Using {site.label}. (Next time it goes straight there; --site changes it.)\n")
-    return site
+            ans = input(f"Which? [1-{len(hits)} or A, Enter = A] ").strip()
+            if ans.isdigit() and 1 <= int(ans) <= len(hits):
+                chosen = [hits[int(ans) - 1][0]]
+    state.remember_sites(hits[0][1]["title"], [s.name for s in chosen])
+    state.remember_sites(journal, [s.name for s in chosen])
+    print(f"Using {' + '.join(s.label for s in chosen)}" + (", alternating" if len(chosen) > 1 else "")
+          + ". (Next time it goes straight there; --site changes it.)\n")
+    return chosen
 
 
 # ---------------------------------------------------------------- downloading
 def download(site, a, journal, years=None, issue=None, month=None, pick=False, when_arg=None, pace=None,
              keys=None, new=False, yes=False):
+    """site: one Site, or a list of them (several: alternate between them, issue by issue)."""
+    from contextlib import ExitStack
+
     from playwright.sync_api import sync_playwright
     from .engine import Cancelled, Paused, RunLock, _browser_gone
     from .store import Store
+    sites = list(site) if isinstance(site, (list, tuple)) else [site]
+    if month:                     # a site that dates issues by month must name them, or no issue matches
+        sites.sort(key=lambda s: not s.has_months)
+    site = sites[0]
     root = archive_root(a)
     whole = not (years or issue or month or pick or keys or new)
     yes = yes or a.yes
@@ -207,21 +219,47 @@ def download(site, a, journal, years=None, issue=None, month=None, pick=False, w
         if m:
             years = (int(m.group(1)), int(m.group(1)))
     started = time.monotonic()
-    with RunLock(site.db.with_suffix(".lock")), sync_playwright() as p:
-        ctx, tab = site.session(p)
-        ok, res = site.pick(tab, journal)
-        if not ok:
-            print(f"No {site.label} journal matches {journal!r} exactly.")
-            if res:
-                print("Did you mean one of these?\n  " + "\n  ".join(res[:20]))
+    with ExitStack() as stack:
+        for s in sites:
+            stack.enter_context(RunLock(s.db.with_suffix(".lock")))
+        p = stack.enter_context(sync_playwright())
+        opened = []                                  # [(site, ctx, journal match)]
+        for s in sites:
+            if len(sites) > 1:
+                print(f"Opening {s.label}...")
+            try:
+                ctx, tab = s.session(p)
+                ok, res = s.pick(tab, journal)
+            except (s.AdapterError, SystemExit) as e:
+                if s is site and len(sites) == 1:
+                    raise
+                print(f"  {s.label} could not be used this time ({str(e)[:120]}); skipping it.")
+                continue
+            if ok:
+                opened.append((s, ctx, res))
+            elif len(sites) == 1:
+                print(f"No {s.label} journal matches {journal!r} exactly.")
+                if res:
+                    print("Did you mean one of these?\n  " + "\n  ".join(res[:20]))
+                raise SystemExit(EXIT_NOT_FOUND)
+            else:
+                print(f"  {s.label} has no journal matching {journal!r} exactly; skipping it.")
+        if not opened:
+            print(f"No site could open {journal!r}.")
             raise SystemExit(EXIT_NOT_FOUND)
-        state.remember_site(res["title"], site.name)
+        site, ctx, res = opened[0]
+        if len(sites) == 1:
+            state.remember_site(res["title"], site.name)
         jdir = root / files.clean(res["title"], 100)
-        print(f"Journal: {res['title']}  ({site.label})")
+        print(f"Journal: {res['title']}  ({' + '.join(s.label for s, _, _ in opened)}"
+              + (", alternating at random per issue)" if len(opened) > 1 else ")"))
         print(f"Files:   {system.show_path(jdir)}")
         print("Speed:  ", pace.describe())
-        st = Store(site.db)
-        st.recover_leases()
+        stores = {}
+        for s, _, _ in opened:
+            stores[s.name] = Store(s.db)
+            stores[s.name].recover_leases()
+        st = stores[site.name]
 
         def plan_ok(plan):
             if yes or not _interactive():
@@ -239,10 +277,19 @@ def download(site, a, journal, years=None, issue=None, month=None, pick=False, w
                 state.update(last_run=dict(state.load().get("last_run") or {}, keys=[i["key"] for i in sel]))
             return sel
 
-        r = site.runner(ctx, st, root, discover_only=a.dry_run, max_downloads=a.max, pacing=pace,
-                        confirm=confirm, plan_confirm=plan_ok, new_only=new)
+        if len(opened) == 1:
+            r = site.runner(ctx, st, root, discover_only=a.dry_run, max_downloads=a.max, pacing=pace,
+                            confirm=confirm, plan_confirm=plan_ok, new_only=new)
+        else:
+            from .multisite import Alternator
+            r = Alternator([(s.label, s.runner(c, stores[s.name], root, discover_only=a.dry_run, pacing=pace,
+                                               new_only=new), m["id"]) for s, c, m in opened],
+                           confirm=confirm, plan_confirm=plan_ok, discover_only=a.dry_run,
+                           max_downloads=a.max, new_only=new)
         spec = {"site": site.name, "journal": res["title"], "years": list(years) if years else None,
                 "month": month, "issue": issue, "keys": keys, "new": new, "max": a.max}
+        if len(opened) > 1:
+            spec["sites"] = [s.name for s, _, _ in opened]
         if not a.dry_run:
             state.start_run(spec)
             r.on_issue = lambda where, done, total: state.progress(where, done, total)
@@ -257,9 +304,10 @@ def download(site, a, journal, years=None, issue=None, month=None, pick=False, w
             reason, code = str(e), EXIT_PAUSED
             print(f"\nStopped: {e}\nEverything downloaded so far is kept; run the same command (or --resume) "
                   "to continue.")
-        except site.AdapterError as e:
+        except tuple({s.AdapterError for s, _, _ in opened}) as e:
             st.event("run", "adapter", "error", error=str(e))
-            reason, code = f"the {site.label} page was not as expected: {e}", EXIT_PAGE
+            bad = next((s for s, _, _ in opened if isinstance(e, s.AdapterError)), site)
+            reason, code = f"the {bad.label} page was not as expected: {e}", EXIT_PAGE
             print(f"\nStopped ({reason}).")
         except KeyboardInterrupt:
             reason, code = "stopped with Ctrl+C", EXIT_CTRL_C
@@ -345,7 +393,7 @@ def cmd_status(sites, a):
         print("Nothing downloaded yet.")
     lr = state.unfinished()
     if lr:
-        print(f"\nUnfinished: {lr['journal']} ({SITES[lr['site']].label})"
+        print(f"\nUnfinished: {lr['journal']} ({' + '.join(SITES[n].label for n in lr.get('sites') or [lr['site']])})"
               + (f", stopped in {lr['where']}" if lr.get("where") else "")
               + (f" ({lr['done']}/{lr['total']})" if lr.get("total") else "")
               + (f" — {lr['reason']}" if lr.get("reason") else "") + ".  Continue with --resume")
@@ -394,10 +442,13 @@ def cmd_resume(a, site_filter=None):
         print(f"The last unfinished run was on {SITES[lr['site']].label}: use "
               f"{SITES[lr['site']].prog} --resume or journal-dl --resume.")
         return 1
-    site = SITES[lr["site"]]
-    print(f"Continuing: {lr['journal']} ({site.label})" + (f", from {lr['where']}" if lr.get("where") else ""))
+    run_sites = [SITES[n] for n in lr.get("sites") or [lr["site"]]]
+    if site_filter:
+        run_sites = [site_filter]
+    print(f"Continuing: {lr['journal']} ({' + '.join(s.label for s in run_sites)})"
+          + (f", from {lr['where']}" if lr.get("where") else ""))
     years = tuple(lr["years"]) if lr.get("years") else None
-    return download(site, a, lr["journal"], years, lr.get("issue"), lr.get("month"), keys=lr.get("keys"),
+    return download(run_sites, a, lr["journal"], years, lr.get("issue"), lr.get("month"), keys=lr.get("keys"),
                     new=lr.get("new", False), yes=True)
 
 
@@ -420,10 +471,12 @@ def cmd_update(sites, a):
         return 0
     worst = 0
     for f in fl:
-        site = SITES[f["site"]]
-        print(f"\n===== {f['title']} ({site.label}) =====")
+        run_sites = [SITES[n] for n in f.get("sites") or [f["site"]] if SITES[n] in sites]
+        if not run_sites:
+            continue
+        print(f"\n===== {f['title']} ({' + '.join(s.label for s in run_sites)}) =====")
         try:
-            code = download(site, a, f["title"], new=True, yes=True)
+            code = download(run_sites, a, f["title"], new=True, yes=True)
         except SystemExit as e:
             code = e.code if isinstance(e.code, int) else 1
             if not isinstance(e.code, int):
@@ -432,7 +485,8 @@ def cmd_update(sites, a):
     return worst
 
 
-def cmd_follow(a, site):
+def cmd_follow(a, sites):
+    site = sites[0]
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         ctx, tab = site.session(p)
@@ -441,8 +495,8 @@ def cmd_follow(a, site):
         print(f"No {site.label} journal matches {a.journal!r} exactly."
               + ("\nDid you mean:\n  " + "\n  ".join(res[:10]) if res else ""))
         return EXIT_NOT_FOUND
-    state.follow(site.name, res["title"], res.get("id"))
-    print(f"Following {res['title']} ({site.label}).\n"
+    state.follow(site.name, res["title"], res.get("id"), sites=[s.name for s in sites])
+    print(f"Following {res['title']} ({' + '.join(s.label for s in sites)}).\n"
           "  journal-dl --update               download its new issues (and other followed journals)\n"
           "  journal-dl --schedule weekly      do that automatically every Monday morning")
     return 0
@@ -453,7 +507,8 @@ def cmd_following():
     if not fl:
         print("No followed journals.")
     for f in fl:
-        print(f"  {f['title']}  ({SITES[f['site']].label}, since {f.get('since', '?')})")
+        print(f"  {f['title']}  ({' + '.join(SITES[n].label for n in f.get('sites') or [f['site']])}, "
+              f"since {f.get('since', '?')})")
     print(f"Automatic updates: {system.schedule_status()}")
 
 
@@ -468,6 +523,7 @@ def easy(a, site=None):
         return r
     sites = [site] if site else [SITES[n] for n in ORDER]
     last = state.guide_defaults()
+    options = []
     while True:
         hint = f" [Enter = {last['journal']}]" if last.get("journal") else ""
         text = input(f"Part of the journal name (e.g. '{(site or SITES['wiley']).example_search}'){hint}: ").strip()
@@ -511,12 +567,18 @@ def easy(a, site=None):
             break
         except SystemExit as e:
             print(f"  {e}")
+    run_sites = [chosen]
+    if not site:
+        also = [s for s, n in options if s is not chosen and state.key(n) == state.key(journal)]
+        if also and _yes(f"{journal} is also on {', '.join(s.label for s in also)}. Alternate between the sites at "
+                         "random, issue by issue (spreads the load)? [Y/n] "):
+            run_sites = sorted([chosen] + also, key=lambda s: ORDER.index(s.name))
     pace = ask_speed()
     state.remember_guide(journal=journal, site=chosen.name, when=yrs)
     if _interactive() and _yes("Follow this journal, so --update fetches its new issues later? [y/N] ", False):
-        state.follow(chosen.name, journal)
-    print(f"Reading the issue list from {chosen.label}...")
-    return download(chosen, a, journal, years, None, month=month, pick=yrs.lower() != "new",
+        state.follow(run_sites[0].name, journal, sites=[s.name for s in run_sites])
+    print(f"Reading the issue list from {' + '.join(s.label for s in run_sites)}...")
+    return download(run_sites, a, journal, years, None, month=month, pick=yrs.lower() != "new",
                     when_arg=yrs, pace=pace, new=yrs.lower() == "new")
 
 
@@ -639,9 +701,10 @@ def _dispatch(ap, a, site, sites, argv):
         ap.print_help()
         return 0
 
-    target = resolve(a, a.journal)
+    targets = resolve(a, a.journal)
     if a.follow:
-        return cmd_follow(a, target)
+        return cmd_follow(a, targets)
+    target = next((t for t in targets if t.has_months), targets[0])
     years, month = parse_when(a.when)
     if month and not target.has_months:
         raise SystemExit(f"{target.label} doesn't give months for its issues: use the year with -p to pick issues, "
@@ -650,7 +713,7 @@ def _dispatch(ap, a, site, sites, argv):
         pace = pacing.from_args(a)
     except ValueError as e:
         raise SystemExit(f"{a.prog}: {e}")
-    return download(target, a, a.journal, years, a.issue, month=month, pick=a.pick, when_arg=a.when, pace=pace,
+    return download(targets, a, a.journal, years, a.issue, month=month, pick=a.pick, when_arg=a.when, pace=pace,
                     new=a.new)
 
 

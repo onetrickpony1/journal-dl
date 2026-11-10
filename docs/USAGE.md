@@ -9,7 +9,7 @@ wiley-dl | tandf-dl | ovid-dl  [same options]
 ```
 
 `journal-dl` works with all three sites. `wiley-dl`, `tandf-dl` and `ovid-dl` each use one site, with exactly
-the same options. The only extra option `journal-dl` has is `--site`.
+the same options. The only extra options `journal-dl` has are `--site` and `--alternate`.
 
 ## Choosing what to download
 
@@ -26,12 +26,22 @@ the same options. The only extra option `journal-dl` has is `--site`.
 | `--dry-run` | read the issue lists and contents, show the plan and time estimate, download nothing |
 | `-o FOLDER` | use another archive folder for this run |
 | `--open` | open the journal's folder when done; on its own, open the archive folder |
-| `--site wiley\|tandf\|ovid` | (`journal-dl` only) skip the lookup and use this site |
+| `--site wiley\|tandf\|ovid` | (`journal-dl` only) skip the lookup and use only this site |
+| `--alternate` | (`journal-dl` only) look on every site again; if the journal is on several, alternate between them |
 
 **Finding the journal (journal-dl).** The first time, journal-dl looks for the journal on Wiley, then
 Taylor & Francis, then Ovid. An exact title beats a near one. If more than one site has the journal, it asks
-which to use (the publisher's own site is listed first). The answer is remembered, so the next run goes
-straight there. Use `--site` to change it.
+which to use: one site, or `A` (the default, and what `-y` and background runs get) to alternate between all
+of them. The answer is remembered, so the next run goes straight there. Use `--site` to pin one site, or
+`--alternate` to look again for a journal that was remembered on a single site.
+
+**Alternating between sites.** Each selected issue is downloaded from one site, chosen at random among the
+sites that list it, which spreads the requests over several sites. Issues are matched by volume and issue
+number. The publisher's own site names the folders, so the archive looks the same whichever site an issue
+came from. An issue that was started on one site is finished there, and an issue that is complete on any
+site is skipped. Each site keeps its own pacing and its own hourly/daily PDF count, so a
+`50/day` limit allows up to 50 PDFs from each site; `--max` counts all sites together. `--resume`, `--follow` and `--update` remember the alternation. The guide
+(`--easy`) offers it when the journal you choose is on other sites too.
 
 **Before downloading**, each run reads the contents of the selected issues (up to 15 issues; for more it
 estimates from the ones it has read). It then shows the number of PDFs and how long they will take at your
@@ -98,16 +108,22 @@ institution at the start of the run, else the proxy). See [CONFIGURATION.md](CON
 
 | | |
 |---|---|
-| `--speed fast\|normal\|careful\|slow` | preset (see README) |
+| `--speed fast\|normal\|careful\|slow\|superslow` | preset (see README) |
 | `--delay T` | time between downloads: `10`, `5-15`, `30s-2m` |
 | `--delay-mode uniform\|normal\|exponential` | how delays spread within the range |
 | `--jitter 20%` | extra random ± on every delay |
 | `--page-delay T` | time between page loads |
 | `--break-every N` / `--break-for T` | a break every N downloads (ranges allowed) |
-| `--max-per-hour N` / `--max-per-day N` | rolling limits, counted across runs |
+| `--max-per-hour N` / `--max-per-day N` | PDFs per site in the last 60 min / 24 h, counted across runs and journals (see below) |
 | `--hours 22:00-07:00` | only download in this daily window (`any` = always) |
 | `--backoff X` / `--backoff-max T` | how much to slow down when a site throttles |
 | `--save-speed` / `--show-speed` | remember the settings as the default / show them |
+
+**What the limits count.** The hourly and daily limits count PDFs downloaded from one site in the last
+60 minutes / 24 hours (rolling, not per calendar day), across all runs and all journals on that site.
+PDFs copied from another site's download, or found already in the folder, don't count. Each site has its
+own count: when a journal alternates between two sites, `50/day` allows up to 50 from each, 100 in all.
+To limit a single run instead, use `--max N`, which counts every site together.
 
 A 2-second minimum between downloads always applies. After 4 throttling responses in a row, the run stops.
 

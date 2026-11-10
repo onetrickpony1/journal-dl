@@ -91,15 +91,14 @@ class SiteRunner(BaseRunner):
         raise Paused("sign-in did not complete in time")
 
     # ---------------------------------------------------- engine hooks
-    def run_journal(self, jid, years=None, issue_hint=None):
+    def begin(self):
         self.page = self.ctx.new_page()
+
+    def end(self):
         try:
-            super().run_journal(jid, years, issue_hint)
-        finally:
-            try:
-                self.page.close()
-            except Exception:
-                pass
+            self.page.close()
+        except Exception:
+            pass
 
     def _open(self, jid):
         info = self._goto(self.site.journal_info, jid)
@@ -150,7 +149,7 @@ class SiteRunner(BaseRunner):
         if row["discovery_status"] != "complete":
             self._discover(j, row, issue)
         self.log(f"\n== {files.issue_folder_name(issue)}" + (f" (pages {issue['page_range']})" if issue.get("page_range") else ""))
-        idir = files.issue_dir(self.journal_dir, issue)
+        idir = self.issue_dir(issue)
         arts = self.s.q("""SELECT a.id aid, ia.sequence, a.authors, a.title, a.provider_id, a.doi, ia.has_pdf
                            FROM issue_articles ia JOIN articles a ON a.id=ia.article_id
                            WHERE ia.issue_id=? ORDER BY ia.sequence""", row["id"])
