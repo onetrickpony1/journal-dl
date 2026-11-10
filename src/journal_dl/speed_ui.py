@@ -10,11 +10,15 @@
 from . import pacing
 
 
-def _ask(prompt, parse, default=None):
+_REQUIRED = object()   # no default: Enter alone asks again
+
+
+def _ask(prompt, parse, default=_REQUIRED):
     while True:
-        v = input(prompt).strip()
-        if not v and default is not None:
-            return default
+        # The current value is shown as "[5s-12s]", so accept it typed back with the brackets.
+        v = input(prompt).strip().removeprefix("[").removesuffix("]").strip()
+        if not v and default is not _REQUIRED:
+            return default   # may be None, e.g. hours = "any"
         try:
             return parse(v)
         except (ValueError, SystemExit) as e:
