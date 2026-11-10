@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Library access `auto` (new default when a proxy is set): at the start of each run journal-dl checks whether
+  Wiley or Taylor & Francis already recognise your institution (on campus or VPN) and then goes direct instead
+  of through the proxy. A run never switches route mid-way; if direct access is lost it pauses, and `--resume`
+  checks again. New `access` setting, `--direct` / `--via-proxy`, and `--doctor` shows the route.
 - Custom speed (`--easy`): a value typed with brackets, like the `[5s-12s]` the prompt shows, is now accepted
   (`[1m-5m]` was rejected as `'[1m'`).
 - Custom speed (`--easy`): pressing Enter at "Only download between" with no hours set no longer repeats

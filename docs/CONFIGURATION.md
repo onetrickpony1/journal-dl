@@ -25,8 +25,9 @@
 |---|---|
 | `output` | archive folder (default: `Documents/Journal Downloads` in your home folder) |
 | `proxy` | your library's EZproxy host. Sites are opened as `https://<site-with-dashes>.<proxy>`; empty = direct (campus/VPN) |
+| `access` | with a proxy set: `auto` (default) goes direct when the publisher already recognises your institution at the start of a run (campus/VPN), else through the proxy; `proxy` or `direct` = always. `--direct` / `--via-proxy` override it for one run |
 | `login_hosts` | your institution's sign-in host(s); seeing one means the session has expired |
-| `institution_name` | the name Wiley shows when you are signed in (empty = don't check) |
+| `institution_name` | the name Wiley shows when you are signed in (empty = don't check; also needed for `access: auto` to go direct on Wiley) |
 | `library_journal_search` | your catalogue's journal search URL ending where the search text goes; used to open Ovid |
 | `library_ovid_door` | any journal your catalogue opens on Ovid ("Available Online"); used once to get into Ovid |
 | `chrome` | path to Chrome, Chromium or Edge, if it isn't found automatically |

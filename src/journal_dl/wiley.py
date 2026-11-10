@@ -26,7 +26,10 @@ from urllib.parse import quote
 
 from . import settings
 
-BASE = os.environ.get("WILEY_DL_BASE") or settings.proxied("onlinelibrary.wiley.com")
+HOST = "onlinelibrary.wiley.com"
+_FORCED_BASE = os.environ.get("WILEY_DL_BASE")
+BASE = _FORCED_BASE or settings.proxied(HOST)
+ROUTE = "custom" if _FORCED_BASE else ("proxy" if settings.S.get("proxy") else "direct")
 NAME, LABEL, HOST_HINT, PROG = "wiley", "Wiley", "onlinelibrary", "wiley-dl"
 HAS_MONTHS = True
 EXAMPLE_JOURNAL, EXAMPLE_YEAR, EXAMPLE_MONTH = "Journal of Organizational Behavior", 2026, 10
@@ -36,6 +39,13 @@ ITEM_S = 4.0                      # typical seconds one PDF download takes
 
 def login_hints():
     return settings.login_hints()
+
+
+def use_route(route):
+    """Reach Wiley directly ('direct') or through the library proxy ('proxy'). WILEY_DL_BASE always wins."""
+    global BASE, ROUTE
+    if not _FORCED_BASE:
+        BASE, ROUTE = settings.site_base(HOST, route), route
 
 
 class AdapterError(RuntimeError):
@@ -108,6 +118,20 @@ def signed_in(page):
         if any(h in page.url for h in login_hints()):
             return False
         return name.lower() in page.inner_text("body")[:8000].lower() if name else True
+    except Exception:
+        return False
+
+
+def can_recognize():
+    """Wiley names the institution only in its own words: without institution_name we can't tell."""
+    return bool((settings.S.get("institution_name") or "").strip())
+
+
+def recognized(page):
+    """True when this page names the institution, i.e. Wiley knows who is paying for access."""
+    name = (settings.S.get("institution_name") or "").strip().lower()
+    try:
+        return bool(name) and name in page.inner_text("body")[:8000].lower()
     except Exception:
         return False
 

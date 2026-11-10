@@ -32,12 +32,26 @@ from . import settings
 from .wiley import (AdapterError, AuthRequired, ChallengeRequired, RateLimited, _norm_title,  # noqa: F401
                     is_challenge, login_hints, norm, title_matches)
 
-BASE = os.environ.get("TANDF_DL_BASE") or settings.proxied("www.tandfonline.com")
+HOST = "www.tandfonline.com"
+_FORCED_BASE = os.environ.get("TANDF_DL_BASE")
+BASE = _FORCED_BASE or settings.proxied(HOST)
+ROUTE = "custom" if _FORCED_BASE else ("proxy" if settings.S.get("proxy") else "direct")
 NAME, LABEL, HOST_HINT, PROG = "tandf", "Taylor & Francis", "tandfonline", "tandf-dl"
 HAS_MONTHS = False
 EXAMPLE_JOURNAL, EXAMPLE_YEAR, EXAMPLE_MONTH = "European Journal of Work and Organizational Psychology", 2025, 1
 EXAMPLE_ISSUE, EXAMPLE_SEARCH = "34(2)", "work and organizational"
 ITEM_S = 9.0                      # the viewer tab makes each download slower than Wiley's
+
+
+def use_route(route):
+    """Reach T&F directly ('direct') or through the library proxy ('proxy'). TANDF_DL_BASE always wins."""
+    global BASE, ROUTE
+    if not _FORCED_BASE:
+        BASE, ROUTE = settings.site_base(HOST, route), route
+
+
+def can_recognize():
+    return True
 
 
 def goto(page, path, settle=1500):
@@ -61,6 +75,9 @@ def signed_in(page):
         return "Access provided by" in page.inner_text("body")[:8000]
     except Exception:
         return False
+
+
+recognized = signed_in      # T&F names the institution ("Access provided by ...") only when it recognises it
 
 
 # ---------------------------------------------------------------- journals
