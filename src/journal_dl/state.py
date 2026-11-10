@@ -11,6 +11,7 @@
     last_run       what the last download was doing, so it can be resumed
     follows        journals followed for --update (new issues only)
     journal_sites  which site a journal was found on (journal-dl skips searching next time)
+    journal_alt    journals on several sites that are downloaded alternating between them
     guide          the guide's last answers, offered as defaults
 """
 import json
@@ -90,9 +91,11 @@ def follows() -> list:
     return load().get("follows", [])
 
 
-def follow(site: str, title: str, jid=None):
+def follow(site: str, title: str, jid=None, sites=None):
+    """sites: every site to alternate between (site is the first of them)."""
     fs = [f for f in follows() if not (f["site"] == site and key(f["title"]) == key(title))]
-    fs.append({"site": site, "title": title, "id": jid, "since": time.strftime("%Y-%m-%d")})
+    fs.append({"site": site, "title": title, "id": jid, "since": time.strftime("%Y-%m-%d")}
+              | ({"sites": list(sites)} if sites and len(sites) > 1 else {}))
     update(follows=fs)
 
 
@@ -111,6 +114,26 @@ def remember_site(title: str, site: str):
 
 def known_site(title: str):
     return load().get("journal_sites", {}).get(key(title))
+
+
+def remember_sites(title: str, sites):
+    """Several sites to alternate between (one site: forget the alternation)."""
+    alt = load().get("journal_alt", {})
+    if len(sites) > 1:
+        alt[key(title)] = list(sites)
+    else:
+        alt.pop(key(title), None)
+    update(journal_alt=alt)
+    if sites:
+        remember_site(title, sites[0])
+
+
+def known_sites(title: str) -> list:
+    alt = load().get("journal_alt", {}).get(key(title))
+    if alt:
+        return list(alt)
+    one = known_site(title)
+    return [one] if one else []
 
 
 def guide_defaults() -> dict:

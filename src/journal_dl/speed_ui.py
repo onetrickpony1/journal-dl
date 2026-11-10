@@ -31,8 +31,8 @@ def ask_speed():
     print("\nSpeed (time between downloads):")
     print(f"  0. keep saved setting  {cur.describe()}")
     for n, k in enumerate(names, 1):
-        print(f"  {n}. {k:<8} {pacing.PRESET_HELP[k]}")
-    print(f"  {len(names) + 1}. custom   choose every setting yourself")
+        print(f"  {n}. {k:<9} {pacing.PRESET_HELP[k]}")
+    print(f"  {len(names) + 1}. custom    choose every setting yourself")
     ch = _ask(f"Choose 0-{len(names) + 1} (Enter = 0): ",
               lambda v: int(v) if v.isdigit() and 0 <= int(v) <= len(names) + 1 else (_ for _ in ()).throw(ValueError("type a number from the list")), 0)
     if ch == 0:
@@ -62,8 +62,8 @@ def custom_speed(base):
     p.break_every = _ask(f"  Break every N downloads (0 = never) [{D(p.break_every, lambda x: str(int(x)))}]: ", I, p.break_every)
     if p.break_every[1] > 0:
         p.break_for = _ask(f"  Break length [{D(p.break_for)}]: ", R, p.break_for)
-    p.max_per_hour = _ask(f"  Max downloads per hour (0 = no limit) [{p.max_per_hour}]: ", int, p.max_per_hour)
-    p.max_per_day = _ask(f"  Max downloads per day (0 = no limit) [{p.max_per_day}]: ", int, p.max_per_day)
+    p.max_per_hour = _ask(f"  Max downloads per hour, per site (0 = no limit) [{p.max_per_hour}]: ", int, p.max_per_hour)
+    p.max_per_day = _ask(f"  Max downloads per day, per site (0 = no limit) [{p.max_per_day}]: ", int, p.max_per_day)
     h = p.hours
     hs = "any" if not h else f"{h[0] // 60:02d}:{h[0] % 60:02d}-{h[1] // 60:02d}:{h[1] % 60:02d}"
     p.hours = _ask(f"  Only download between (e.g. 22:00-07:00, 'any' = any time) [{hs}]: ",

@@ -94,7 +94,7 @@ class OvidRunner(BaseRunner):
             raise ovid.AdapterError("changing results-per-page left the issue")
         if ovid.current_results_page(p) != 1:
             ovid.go_results_page(p, 1)
-        idir = files.issue_dir(self.journal_dir, issue)
+        idir = self.issue_dir(issue)
         seen, k = set(), 1
         while True:
             rows = ovid.parse_rows(p)

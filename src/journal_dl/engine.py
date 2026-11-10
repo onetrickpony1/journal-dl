@@ -223,12 +223,12 @@ def write_issue_files(store, issue_id, issue, idir: Path, source="journal-dl"):
     _atomic_write(meta / f"{idir.name}.md", "\n".join(lines) + "\n")
 
 
-def write_journal_report(store, journal_id, jdir: Path):
+def write_journal_report(store, journal_id, jdir: Path, name="journal_report"):
     j = store.one("SELECT * FROM journals WHERE id=?", journal_id)
     issues = store.q("SELECT * FROM issues WHERE journal_id=? ORDER BY list_order", journal_id)
     summ = [issue_summary(store, i["id"]) | {"year": i["year"]} for i in issues]
     tot = lambda k: sum(s[k] for s in summ)
-    _atomic_write(files.meta_dir(jdir) / "journal_report.json",
+    _atomic_write(files.meta_dir(jdir) / f"{name}.json",
                   json.dumps({"journal": dict(j), "issues": summ}, indent=2, ensure_ascii=False))
     lines = [f"# {j['title']}" + (f" (ISSN {j['issn']})" if j["issn"] else ""), "",
              f"Issues listed: {len(summ)} · contents read: {sum(s['discovery'] == 'complete' for s in summ)} · "
@@ -237,7 +237,7 @@ def write_journal_report(store, journal_id, jdir: Path):
              "| Year | Issue | Contents | Articles | PDFs | Outcome |", "|---|---|---|---|---|---|"]
     lines += [f"| {s['year']} | {s['volume']}({s['issue_label']}) {s['date'] or ''} | {s['discovery']} | {s['records']} | "
               f"{s['validated_files']}/{s['pdf_eligible']} | {s['outcome']} |" for s in summ if s["records"] or s["discovery"] != "pending"]
-    _atomic_write(files.meta_dir(jdir) / "journal_report.md", "\n".join(lines) + "\n")
+    _atomic_write(files.meta_dir(jdir) / f"{name}.md", "\n".join(lines) + "\n")
 
 
 def _atomic_write(path: Path, text: str):
@@ -268,6 +268,8 @@ class BaseRunner:
         self.journal_dir = None
         self.journal_title = None
         self.on_issue = None            # f(issue folder name, done, total): progress for resume
+        self.folder_issue = {}          # issue key -> the issue as another site names it (alternating sites:
+                                        # every site saves an issue into the same folder)
 
     @property
     def downloads(self):
@@ -282,6 +284,9 @@ class BaseRunner:
         free = shutil.disk_usage(self.root).free
         if free < MIN_FREE_BYTES:
             raise Paused(f"low disk space on the archive drive: {free / 1024**3:.1f} GB free")
+
+    def issue_dir(self, issue):
+        return files.issue_dir(self.journal_dir, self.folder_issue.get(issue["key"], issue))
 
     def limit_reached(self):
         return self.max_downloads is not None and self.stats.downloaded >= self.max_downloads
@@ -302,6 +307,12 @@ class BaseRunner:
     def _fetch(self, r):                       # -> dict(state=..., data=..., msg=..., retry_after=..., ident=...)
         raise NotImplementedError
 
+    def begin(self):                           # before the first page step (e.g. open a tab)
+        pass
+
+    def end(self):
+        pass
+
     def _retrying(self, fn, *a):
         """Run a page step, waiting for a new sign-in if the session expired."""
         for _ in range(3):
@@ -312,38 +323,67 @@ class BaseRunner:
         return fn(*a)
 
     # ---------------------------------------------------- orchestration
-    def run_journal(self, jid, years=None, issue_hint=None):
+    def open_journal(self, jid, title=None):
+        """Open the journal; title: the folder name to use (default: the title this site shows)."""
         info, j = self._open(jid)
         self.journal_title = info["title"]
         self.jrow = j
-        self.journal_dir = jdir = files.journal_dir(self.root, info["title"])
-        self.log("Covers:  " + (info.get("years") or "?") + (f"  (ISSN {info['issn']})" if info.get("issn") else ""))
+        self.journal_dir = files.journal_dir(self.root, title or info["title"])
+        return info, j
+
+    def years_for(self, info, j, years=None, issue_hint=None, newest_have=None):
+        """Which years' issue lists to read. newest_have: year of the newest issue with a download
+        (default: from this site's database)."""
         if not years and issue_hint:
             m = re.match(r"\s*(?:vol(?:ume)?\.?\s*)?([\w.-]+)\s*\(", issue_hint, re.I)
             y = (info.get("vol_years") or {}).get(m.group(1)) if m else None
             if y:
                 years = (y, y)
                 self.log(f"Volume {m.group(1)} is {y}: reading only that year.")
-        newest_have = None
         if self.new_only and not years:
-            newest_have = self.s.one("""SELECT i.year FROM issues i JOIN issue_articles ia ON ia.issue_id=i.id
-                                        JOIN jobs jb ON jb.article_id=ia.article_id
-                                        WHERE i.journal_id=? AND jb.state='complete'
-                                        ORDER BY CAST(i.year AS INTEGER) DESC LIMIT 1""", j["id"])
+            if newest_have is None:
+                newest_have = self.newest_year_downloaded(j)
             last_year = info.get("last_year")
             if newest_have and last_year:
-                years = (int(newest_have["year"]), int(last_year))
+                years = (min(int(newest_have), int(last_year)), int(last_year))
             elif last_year:
                 years = (int(last_year), int(last_year))
             if years:
                 self.log(f"New issues only: checking {years[0]}" + (f"-{years[1]}" if years[1] != years[0] else ""))
+        return years
 
+    def newest_year_downloaded(self, j):
+        r = self.s.one("""SELECT i.year FROM issues i JOIN issue_articles ia ON ia.issue_id=i.id
+                          JOIN jobs jb ON jb.article_id=ia.article_id
+                          WHERE i.journal_id=? AND jb.state='complete'
+                          ORDER BY CAST(i.year AS INTEGER) DESC LIMIT 1""", j["id"])
+        return int(r["year"]) if r and str(r["year"]).isdigit() else None
+
+    def list_issues(self, info, j, years):
         issues = self._list(info, years)
         with self.s.tx():
             for n, i in enumerate(issues):
                 self.s.upsert_issue(j["id"], i, n)
             self.s.db.execute("UPDATE journals SET issues_listed_at=? WHERE id=?", (time.time(), j["id"]))
         self.log(f"Found {len(issues)} issue(s)" + (f" in {years[0]}-{years[1]}" if years else "") + ".")
+        return issues
+
+    def issue_row(self, j, issue):
+        return self.s.one("SELECT * FROM issues WHERE journal_id=? AND provider_key=?", j["id"], issue["key"])
+
+    def run_journal(self, jid, years=None, issue_hint=None):
+        self.begin()
+        try:
+            self._run_journal(jid, years, issue_hint)
+        finally:
+            self.end()
+
+    def _run_journal(self, jid, years=None, issue_hint=None):
+        info, j = self.open_journal(jid)
+        jdir = self.journal_dir
+        self.log("Covers:  " + (info.get("years") or "?") + (f"  (ISSN {info['issn']})" if info.get("issn") else ""))
+        years = self.years_for(info, j, years, issue_hint)
+        issues = self.list_issues(info, j, years)
 
         todo = issues
         if self.new_only:
@@ -357,8 +397,7 @@ class BaseRunner:
                 raise Cancelled("nothing selected; nothing downloaded")
             if isinstance(chosen, list):
                 todo = chosen
-        rows = {i["key"]: self.s.one("SELECT * FROM issues WHERE journal_id=? AND provider_key=?", j["id"], i["key"])
-                for i in todo}
+        rows = {i["key"]: self.issue_row(j, i) for i in todo}
 
         # read contents first (when few enough) so the estimate is exact
         unread = [i for i in todo if rows[i["key"]]["discovery_status"] != "complete"]
@@ -380,27 +419,33 @@ class BaseRunner:
         if self.plan_confirm and not self.plan_confirm(plan):
             raise Cancelled("cancelled; nothing downloaded")
 
-        self.progress.total = min(plan.pending, self.max_downloads) if self.max_downloads else plan.pending
-        self.progress.per_item = plan.estimate[1] / max(plan.pending, 1) if plan.pending else 10.0
+        self.start_progress(plan)
         for i in todo:
             row = rows[i["key"]]
             if row["discovery_status"] == "complete" and not self._pending(row["id"]):
                 continue
-            self.progress.label = files.issue_folder_name(i)
-            self.stats.issues.add(i["key"])
-            if self.on_issue:
-                self.on_issue(self.progress.label, self.progress.done, self.progress.total)
-            self._retrying(self._download_issue, j, row, i)
-            idir = files.issue_dir(jdir, i)
-            write_issue_files(self.s, row["id"], i, idir, source=self.LABEL)
-            self.s.backup_to(files.meta_dir(jdir) / f"{self.NAME}-backup.sqlite")
+            self.download_issue(j, row, i)
             if self.limit_reached():
                 self.log(f"Reached --max {self.max_downloads} downloads, stopping.")
                 break
         self._finish(j, jdir)
 
-    def _finish(self, j, jdir):
-        write_journal_report(self.s, j["id"], jdir)
+    def start_progress(self, plan):
+        self.progress.total = min(plan.pending, self.max_downloads) if self.max_downloads else plan.pending
+        self.progress.per_item = plan.estimate[1] / max(plan.pending, 1) if plan.pending else 10.0
+
+    def download_issue(self, j, row, i):
+        """One issue's pending PDFs, then its report and a database backup."""
+        self.progress.label = files.issue_folder_name(self.folder_issue.get(i["key"], i))
+        self.stats.issues.add(i["key"])
+        if self.on_issue:
+            self.on_issue(self.progress.label, self.progress.done, self.progress.total)
+        self._retrying(self._download_issue, j, row, i)
+        write_issue_files(self.s, row["id"], i, self.issue_dir(i), source=self.LABEL)
+        self.s.backup_to(files.meta_dir(self.journal_dir) / f"{self.NAME}-backup.sqlite")
+
+    def _finish(self, j, jdir, report="journal_report"):
+        write_journal_report(self.s, j["id"], jdir, name=report)
         self.s.backup_to(files.meta_dir(jdir) / f"{self.NAME}-backup.sqlite")
 
     def _pending(self, issue_id):

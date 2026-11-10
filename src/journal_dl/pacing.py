@@ -12,7 +12,8 @@ Everything that decides *when* the next request may happen lives here:
   - delay between article downloads: fixed, range, jitter; uniform / normal / exponential spread
   - delay between page loads (issue lists, results pages), separate and usually shorter
   - breaks: a longer pause every N downloads (N and the pause may both be ranges)
-  - caps: max downloads per hour and per day (rolling windows, counted across runs)
+  - caps: max downloads per hour and per day (rolling windows over this site's database: all runs and
+    journals on the site, not other sites; copied/adopted files don't count)
   - active hours: only download inside a daily time window (may wrap midnight)
   - adaptive slow-down: throttling/errors multiply the delay (honouring Retry-After),
     successes bring it back gradually (AIMD)
@@ -164,12 +165,15 @@ PRESETS = {
                     max_per_hour=120),
     "slow":    dict(delay=(30, 90), page_delay=(5, 10), break_every=(10, 20), break_for=(300, 900),
                     max_per_hour=40, max_per_day=300),
+    "superslow": dict(delay=(300, 900), page_delay=(10, 25), break_every=(4, 8), break_for=(1800, 3600),
+                      max_per_hour=6, max_per_day=50),
 }
 PRESET_HELP = {
     "fast": "3-6s between PDFs, no breaks",
     "normal": "5-12s between PDFs, 1-3 min break every 25-40 PDFs",
     "careful": "10-25s, 3-8 min break every 15-30, max 120/hour",
     "slow": "30-90s, 5-15 min break every 10-20, max 40/hour and 300/day",
+    "superslow": "5-15 min, 30-60 min break every 4-8, max 6/hour and 50/day",
 }
 
 
@@ -238,8 +242,8 @@ def add_arguments(ap):
     g.add_argument("--page-delay", metavar="T", help="between page loads, e.g. 2-4")
     g.add_argument("--break-every", metavar="N", help="downloads between breaks, e.g. 20-40 (0 = never)")
     g.add_argument("--break-for", metavar="T", help="break length, e.g. 2m-5m")
-    g.add_argument("--max-per-hour", type=int, metavar="N", help="cap per rolling hour (0 = none)")
-    g.add_argument("--max-per-day", type=int, metavar="N", help="cap per rolling 24 h (0 = none)")
+    g.add_argument("--max-per-hour", type=int, metavar="N", help="PDFs per rolling hour on this site, all runs (0 = none)")
+    g.add_argument("--max-per-day", type=int, metavar="N", help="PDFs per rolling 24 h on this site, all runs (0 = none)")
     g.add_argument("--hours", metavar="HH:MM-HH:MM", help="only download in this daily window, e.g. 22:00-07:00 ('any' = off)")
     g.add_argument("--backoff", type=float, metavar="X", help="slow-down factor on throttling (default 2)")
     g.add_argument("--backoff-max", metavar="T", help="largest slow-down delay (default 15m)")
