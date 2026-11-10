@@ -113,3 +113,64 @@ def login_hints() -> tuple:
     if S.get("proxy"):
         hints.append(f"{S['proxy']}/login")
     return tuple(hints)
+
+
+# ---------------------------------------------------------------- finding the library's proxy (--setup)
+# Publisher sites a library typically sends you to; their EZproxy names look like www-tandfonline-com.<proxy>.
+PUBLISHER_DOMAINS = ("wiley.com", "tandfonline.com", "ovid.com", "sciencedirect.com", "elsevier.com",
+                     "springer.com", "nature.com", "sagepub.com", "jstor.org", "oup.com", "academic.oup.com",
+                     "cambridge.org", "apa.org", "ebscohost.com", "proquest.com", "emerald.com", "lww.com")
+_TLDS = {"com", "org", "net", "edu", "gov", "ac", "co", "info"}
+_LOGIN_WORDS = ("login", "signin", "sso", "idp", "adfs", "shibboleth", "wayf", "auth", "cas")
+
+
+def _is_publisher(host: str) -> bool:
+    return any(host == d or host.endswith("." + d) for d in PUBLISHER_DOMAINS)
+
+
+def proxy_from_url(url: str):
+    """The EZproxy host in a proxied address, or None:
+    https://onlinelibrary-wiley-com.proxy.uba.uva.nl/doi/... -> 'proxy.uba.uva.nl'
+    https://proxy.example.edu/login?url=https://... -> 'proxy.example.edu'."""
+    from urllib.parse import urlsplit
+    u = urlsplit(url or "")
+    host = (u.hostname or "").lower()
+    if not host or u.scheme not in ("http", "https"):
+        return None
+    if u.path.rstrip("/").endswith("/login") and "url=" in u.query:
+        return host
+    first, _, rest = host.partition(".")
+    if "-" not in first or "." not in rest or _is_publisher(host):
+        return None
+    dotted = first.replace("--", "\0").replace("-", ".").replace("\0", "-")   # EZproxy writes '-' as '--'
+    if _is_publisher(dotted) or dotted.rsplit(".", 1)[-1] in _TLDS:
+        return rest
+    return None
+
+
+def login_host_from_url(url: str, proxy: str = ""):
+    """The host of an institution sign-in page (login.example.edu, idp.example.edu/adfs/...), or None."""
+    from urllib.parse import urlsplit
+    u = urlsplit(url or "")
+    host = (u.hostname or "").lower()
+    if not host or _is_publisher(host) or (proxy and host.endswith(proxy)) or proxy_from_url(url):
+        return None
+    words = host.replace("-", ".").split(".") + u.path.lower().strip("/").split("/")[:2]
+    return host if any(w.startswith(_LOGIN_WORDS) for w in words) else None
+
+
+def detect_access(urls) -> tuple:
+    """(proxy host or None, [sign-in hosts]) from the addresses seen while the user opened an article
+    through the library. The most frequent proxy wins; sign-in hosts keep the order they were seen in."""
+    counts = {}
+    for u in urls:
+        p = proxy_from_url(u)
+        if p:
+            counts[p] = counts.get(p, 0) + 1
+    proxy = max(counts, key=counts.get) if counts else None
+    logins = []
+    for u in urls:
+        h = login_host_from_url(u, proxy or "")
+        if h and h not in logins:
+            logins.append(h)
+    return proxy, logins

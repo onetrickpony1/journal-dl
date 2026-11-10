@@ -10,6 +10,7 @@
 import importlib.metadata as md
 import shutil
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -114,6 +115,60 @@ def doctor(sites, a=None) -> int:
     return 1 if problems else 0
 
 
+def _yes(prompt, default=True):
+    ans = input(prompt).strip().lower()
+    return default if not ans else ans in ("y", "yes", "j", "ja")
+
+
+def detect_access(wait_s=600):
+    """Watch the browser window while the user opens an article through their library and signs in;
+    -> (proxy host or None, [sign-in hosts]). Ctrl+C stops watching."""
+    from playwright.sync_api import sync_playwright
+    print("\nIn the browser window that opens now:\n"
+          "  1. go to your library's website (or its catalogue / e-journals page),\n"
+          "  2. open any journal article from Wiley, Taylor & Francis or Ovid through it,\n"
+          "  3. sign in when your institution asks.\n"
+          f"journal-dl watches the addresses and picks up your library's proxy (up to {wait_s // 60} min; "
+          "Ctrl+C = skip and type it yourself).")
+    if not browser.find_chrome():
+        print("  No Chrome, Chromium or Edge found, so there is no window to watch "
+              "(install one, or run: journal-dl --install-browser).")
+        return None, []
+    seen = []
+    try:
+        with sync_playwright() as p:
+            ctx = browser.connect(p)
+
+            def watch(page):
+                seen.append(page.url)
+                page.on("framenavigated", lambda f: seen.append(f.url) if f == page.main_frame else None)
+
+            for pg in ctx.pages:
+                watch(pg)
+            ctx.on("page", watch)
+            if not ctx.pages:
+                ctx.new_page()
+            ctx.pages[-1].bring_to_front()
+            found_at, end = None, time.monotonic() + wait_s
+            while time.monotonic() < end:
+                live = [pg for pg in ctx.pages if not pg.is_closed()]
+                if not live:
+                    break
+                live[0].wait_for_timeout(1000)          # lets the page events above arrive
+                seen.extend(pg.url for pg in live)
+                proxy, logins = settings.detect_access(seen)
+                if proxy and found_at is None:
+                    found_at = time.monotonic()
+                    print(f"  found the proxy: {proxy}; finish signing in if asked...")
+                # done once some tab shows a proxied page again (the sign-in is complete), or after a minute
+                on_proxied = any(settings.proxy_from_url(pg.url) == proxy for pg in live) if proxy else False
+                if found_at and ((on_proxied and time.monotonic() - found_at > 3) or time.monotonic() - found_at > 60):
+                    break
+    except KeyboardInterrupt:
+        print("  (stopped watching)")
+    return settings.detect_access(seen)
+
+
 def _ask(label, cur):
     shown = cur if cur not in (None, "") else "none"
     v = input(f"{label} [{shown}]: ").strip()
@@ -128,6 +183,17 @@ def setup() -> int:
     out = _ask("Archive folder (where PDFs go)", s.get("output") or str(paths.default_output()))
     print("\nLibrary access from off campus usually goes through an EZproxy address such as\n"
           "  proxy.library.example.edu  (look at the address bar after opening a journal through your library).")
+    hosts_found = []
+    if not s.get("proxy") and _yes("journal-dl can find it for you: you open one article through your library in "
+                                   "its browser window. Do that now? [Y/n] "):
+        found, hosts_found = detect_access()
+        if found:
+            print(f"Your library's proxy: {found}" + (f"; sign-in page: {', '.join(hosts_found)}" if hosts_found else "")
+                  + "\n(press Enter below to use them)")
+            s["proxy"] = found
+        else:
+            print("No proxy address seen (on campus or VPN, or the article didn't open through the library). "
+                  "Type it below, or 'none'.")
     proxy = _ask("Library proxy host ('none' = on campus or VPN)", s.get("proxy"))
     access = s.get("access") or "auto"
     if (proxy or "").strip():
@@ -139,7 +205,7 @@ def setup() -> int:
                 break
             print("  type auto, proxy or direct")
     hosts = _ask("Sign-in page host(s), comma separated (e.g. login.example.edu)",
-                 ", ".join(s.get("login_hosts") or []))
+                 ", ".join(s.get("login_hosts") or hosts_found))
     inst = _ask("Your institution's name as Wiley shows it when signed in (also lets 'auto' go direct on "
                 "Wiley; 'none' = don't check)",
                 s.get("institution_name"))
