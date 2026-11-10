@@ -84,6 +84,16 @@ notification and the run waits 30 minutes for you to sign in.
 | `--browser` | open the downloader's browser window, e.g. to sign in before a scheduled run |
 | `--install-browser` | download a private Chromium (only needed when no Chrome, Chromium or Edge is installed) |
 
+## Library access
+
+| | |
+|---|---|
+| `--direct` | don't use the library proxy this run (on campus or VPN) |
+| `--via-proxy` | always use the library proxy this run |
+
+Without either, the `access` setting decides (default `auto`: direct when the publisher already recognises your
+institution at the start of the run, else the proxy). See [CONFIGURATION.md](CONFIGURATION.md).
+
 ## Speed options
 
 | | |

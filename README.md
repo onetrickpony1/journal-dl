@@ -118,7 +118,11 @@ A browser window opens. Sign in to your library there when asked; the sign-in is
 
 **Library proxy.** Off campus, most libraries give access through an EZproxy address. Open any journal through
 your library's website and look at the address bar: on `onlinelibrary-wiley-com.proxy.library.example.edu`,
-the proxy is `proxy.library.example.edu`. On campus or on VPN, leave it empty.
+the proxy is `proxy.library.example.edu`. You can keep it set on campus or VPN too: at the start of each run,
+journal-dl checks whether the publisher already recognises your institution and then skips the proxy. A run
+never switches mid-way: if you leave campus or the VPN drops, it pauses, and `--resume` continues through the
+proxy. Wiley is only checked when your institution's name is set in `--setup`. Force a route with `--direct` or
+`--via-proxy`.
 
 ## Everyday use
 

@@ -22,6 +22,8 @@ from . import paths
 DEFAULTS = {
     "output": None,                 # None -> <Documents>/Journal Downloads
     "proxy": "",                    # EZproxy host, e.g. "proxy.library.example.edu"; "" = no proxy (campus / VPN)
+    "access": "auto",               # with a proxy set: "auto" = go direct when the publisher already recognises
+                                    # your institution (campus / VPN), else the proxy; "proxy" / "direct" = always
     "login_hosts": [],              # the institution's sign-in host(s), to notice when a session has expired
     "institution_name": "",         # shown by Wiley when signed in ("" = don't check)
     "library_journal_search": "",   # library catalogue journal-search URL ending in the query text (for Ovid)
@@ -76,6 +78,28 @@ def output_dir() -> Path:
     if env:
         return Path(env)
     return Path(S["output"]) if S.get("output") else paths.default_output()
+
+
+ACCESS_MODES = ("auto", "proxy", "direct")
+_access_override = None             # --direct / --via-proxy for this run
+
+
+def set_access_override(mode):
+    global _access_override
+    _access_override = mode
+
+
+def access_mode() -> str:
+    """How to reach the publishers this run: 'auto', 'proxy' or 'direct' ('direct' when no proxy is set)."""
+    if not (S.get("proxy") or "").strip():
+        return "direct"
+    mode = _access_override or S.get("access") or "auto"
+    return mode if mode in ACCESS_MODES else "auto"
+
+
+def site_base(host: str, route: str) -> str:
+    """Base address of a publisher site for route 'direct' or 'proxy'."""
+    return f"https://{host}" if route == "direct" else proxied(host)
 
 
 def proxied(host: str) -> str:

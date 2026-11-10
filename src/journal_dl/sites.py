@@ -131,6 +131,8 @@ class OvidSite(Site):
 
 # ---------------------------------------------------------------- Wiley / Taylor & Francis
 class PublisherSite(Site):
+    route = None            # last route chosen (for --doctor)
+
     def __init__(self, mod):
         self.m = mod
         self.name, self.label, self.prog = mod.NAME, mod.LABEL, mod.PROG
@@ -144,11 +146,46 @@ class PublisherSite(Site):
         tabs = [t for t in ctx.pages if self.m.HOST_HINT in t.url]
         return tabs[-1] if tabs else None
 
+    def choose_route(self, tab, quiet=False):
+        """Pick how to reach the site for this run: directly when the publisher already recognises the
+        institution (on campus or VPN), else through the library proxy. Decided once, at the start, so a run
+        never switches mid-way (a lost connection pauses instead; see SiteRunner). Returns the route."""
+        m = self.m
+        if m.ROUTE == "custom":
+            return "custom"
+        mode = settings.access_mode()
+        if mode in ("proxy", "direct"):
+            m.use_route(mode)
+            return mode
+        if not m.can_recognize():
+            m.use_route("proxy")
+            if not quiet:
+                print(f"{m.LABEL}: using the library proxy (set your institution's name with --setup to "
+                      "go direct automatically on campus or VPN).")
+            return "proxy"
+        m.use_route("direct")
+        try:
+            m.goto(tab, "/")
+            ok = m.recognized(tab)
+        except Exception:               # sign-in page, bot check, network: not recognised directly
+            ok = False
+        route = "direct" if ok else "proxy"
+        m.use_route(route)
+        if not quiet:
+            print(f"{m.LABEL}: " + ("your institution is recognised directly (campus or VPN), so the library "
+                                    "proxy is not needed." if ok else
+                                    f"going through the library proxy ({settings.S.get('proxy')})."))
+        return route
+
+    def _on_site(self, tab):
+        return tab.url.startswith(self.m.BASE)
+
     def session(self, p):
         m = self.m
         ctx = browser.connect(p)
         tab = self._tab(ctx) or ctx.new_page()
-        if m.HOST_HINT not in tab.url:
+        self.choose_route(tab)
+        if not self._on_site(tab):
             try:
                 m.goto(tab, "/")
             except m.AuthRequired:
@@ -184,7 +221,9 @@ class PublisherSite(Site):
     def signed_in(self, ctx):
         tab = ctx.new_page()
         try:
-            self.m.goto(tab, "/")
+            self.route = self.choose_route(tab, quiet=True)
+            if not self._on_site(tab):
+                self.m.goto(tab, "/")
             return self.m.signed_in(tab)
         except self.m.AuthRequired:
             return False
