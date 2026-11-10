@@ -114,6 +114,10 @@ def build_parser(site=None):
     g.add_argument("--install-launcher", action="store_true", help="add a 'Journal Downloader' desktop icon")
     g.add_argument("--install-browser", action="store_true", help="download a private Chromium (only needed "
                                                                   "without Chrome, Chromium or Edge)")
+    g = ap.add_argument_group("library access (default: your saved setting, else 'auto')")
+    x = g.add_mutually_exclusive_group()
+    x.add_argument("--direct", action="store_true", help="don't use the library proxy this run (on campus or VPN)")
+    x.add_argument("--via-proxy", action="store_true", help="always go through the library proxy this run")
     pacing.add_arguments(ap)
     ap.add_argument("--version", action="version", version=f"{prog} {__version__}")
     return ap
@@ -529,6 +533,7 @@ def run(site_name=None, argv=None):
     a.prog = ap.prog
     a.site_obj = site
     notify.ENABLED = not a.no_notify
+    settings.set_access_override("direct" if a.direct else "proxy" if a.via_proxy else None)
     sites = [site] if site else ([SITES[a.site]] if a.site else [SITES[n] for n in ORDER])
     try:
         code = _dispatch(ap, a, site, sites, argv)

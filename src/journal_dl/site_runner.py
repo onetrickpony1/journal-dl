@@ -10,8 +10,13 @@
 The site module (wiley.py, tandf.py) supplies the page reading."""
 import time
 
-from . import notify, wiley
+from . import notify, settings, wiley
 from .engine import AUTH_WAIT_S, CHALLENGE_MSG, BaseRunner, Paused, _in_years, _retry_after_value, sleep_i
+
+RECHECK_S = 5 * 60      # after a check finds the institution still recognised, trust it this long
+LOST_DIRECT_MSG = ("{label} no longer recognises your institution directly (left campus, or the VPN dropped?). "
+                   "Stopped so articles aren't wrongly marked 'no access'. Run --resume to continue: it checks again "
+                   "and goes through the library proxy if needed.")
 
 
 class SiteRunner(BaseRunner):
@@ -24,6 +29,7 @@ class SiteRunner(BaseRunner):
         self.NAME, self.LABEL = site.NAME, site.LABEL
         self.AuthRequired = site.AuthRequired
         self.ITEM_S = getattr(site, "ITEM_S", self.ITEM_S)
+        self._recognized_at = float("-inf")
 
     # ---------------------------------------------------- helpers
     def _goto(self, fn, *a):
@@ -43,6 +49,30 @@ class SiteRunner(BaseRunner):
                     raise Paused(f"{self.LABEL} keeps throttling; stopped to be safe. Try later or use --speed slow")
                 sleep_i(self.pacer.retry_delay(attempt))
         raise Paused("could not load the page after signing in again")
+
+    def _lost_direct_access(self):
+        """On a run that went direct automatically (campus / VPN), 'no access' may mean the network changed
+        rather than that the library has no subscription. Look at the site's home page once: if the institution
+        is no longer named there, the direct route is gone. The run never switches route mid-way."""
+        if self.site.ROUTE != "direct" or settings.access_mode() != "auto":
+            return False
+        if time.monotonic() - self._recognized_at < RECHECK_S:
+            return False
+        self.pacer.wait_page()
+        tab = self.ctx.new_page()
+        try:
+            self.site.goto(tab, "/")
+            ok = self.site.recognized(tab)
+        except Exception:
+            ok = False
+        finally:
+            try:
+                tab.close()
+            except Exception:
+                pass
+        if ok:
+            self._recognized_at = time.monotonic()
+        return not ok
 
     def wait_for_signin(self, why):
         self.log(f"\n*** SIGN-IN NEEDED ({why}). Sign in through your institution in the browser window; "
@@ -148,6 +178,9 @@ class SiteRunner(BaseRunner):
             text = data[:20000].decode("utf-8", "ignore").lower()
             if status in (401, 403) or any(s in text for s in ("purchase instant access", "access options",
                                                                      "you do not have access", "check access")):
+                if self._lost_direct_access():
+                    notify.send("Download paused", f"{self.LABEL} no longer recognises your institution directly.")
+                    raise Paused(LOST_DIRECT_MSG.format(label=self.LABEL))
                 return {"state": "access_denied", "msg": "no access through your institution"}
             return {"state": "retry", "msg": f"HTTP {status}, got {ctype or 'unknown'} instead of a PDF"}
         return {"state": "ok", "data": data, "source": f"{self.site.NAME}-pdfdirect"}

@@ -40,7 +40,7 @@ def doctor(sites, a=None) -> int:
     line(OK if settings.exists() else WARN, f"settings: {settings.path()}" + ("" if settings.exists() else
                                                                             " (not created yet: run --setup)"))
     proxy = settings.S.get("proxy")
-    line(OK if proxy else WARN, f"library proxy: {proxy}" if proxy else
+    line(OK if proxy else WARN, f"library proxy: {proxy} (access: {settings.access_mode()})" if proxy else
          "library proxy: none (works on campus or VPN only; set one with --setup)")
 
     # archive folder
@@ -92,8 +92,10 @@ def doctor(sites, a=None) -> int:
                 except Exception as e:
                     s = None
                     print(f"       ({site.label}: {str(e)[:80]})")
+                route = getattr(site, "route", None)
+                how = {"direct": " (directly: campus or VPN)", "proxy": " (through the library proxy)"}.get(route, "")
                 if s is True:
-                    line(OK, f"{site.label}: signed in")
+                    line(OK, f"{site.label}: signed in{how}")
                 elif s is False:
                     line(WARN, f"{site.label}: not signed in (it will ask you to sign in when needed)")
                 else:
@@ -127,9 +129,19 @@ def setup() -> int:
     print("\nLibrary access from off campus usually goes through an EZproxy address such as\n"
           "  proxy.library.example.edu  (look at the address bar after opening a journal through your library).")
     proxy = _ask("Library proxy host ('none' = on campus or VPN)", s.get("proxy"))
+    access = s.get("access") or "auto"
+    if (proxy or "").strip():
+        print("\nOn campus or on VPN the proxy isn't needed. 'auto' checks at the start of each run whether the\n"
+              "publisher already recognises your institution and then goes direct; 'proxy' or 'direct' = always.")
+        while True:
+            access = (_ask("Access (auto, proxy or direct)", access) or "auto").lower()
+            if access in settings.ACCESS_MODES:
+                break
+            print("  type auto, proxy or direct")
     hosts = _ask("Sign-in page host(s), comma separated (e.g. login.example.edu)",
                  ", ".join(s.get("login_hosts") or []))
-    inst = _ask("Your institution's name as Wiley shows it when signed in ('none' = don't check)",
+    inst = _ask("Your institution's name as Wiley shows it when signed in (also lets 'auto' go direct on "
+                "Wiley; 'none' = don't check)",
                 s.get("institution_name"))
     print("\nOvid is reached through the library catalogue. Optional:")
     lib = _ask("Library journal-search address ending in the search text", s.get("library_journal_search"))
@@ -137,7 +149,7 @@ def setup() -> int:
     chrome = browser.find_chrome()
     if not chrome:
         chrome = _ask("Path to Chrome, Chromium or Edge (none found automatically)", s.get("chrome"))
-    values = {"output": out, "proxy": (proxy or "").strip().removeprefix("https://").strip("/"),
+    values = {"output": out, "proxy": (proxy or "").strip().removeprefix("https://").strip("/"), "access": access,
               "login_hosts": [h.strip() for h in (hosts or "").split(",") if h.strip()],
               "institution_name": inst or "", "library_journal_search": lib or "",
               "library_ovid_door": door or ""}
