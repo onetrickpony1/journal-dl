@@ -71,8 +71,9 @@ def goto(page, path, settle=1500):
 
 
 def signed_in(page):
+    from .browser import all_text
     try:
-        return "Access provided by" in page.inner_text("body")[:8000]
+        return "Access provided by" in all_text(page)
     except Exception:
         return False
 

@@ -117,7 +117,8 @@ def signed_in(page):
     try:
         if any(h in page.url for h in login_hints()):
             return False
-        return name.lower() in page.inner_text("body")[:8000].lower() if name else True
+        from .browser import all_text
+        return name.lower() in all_text(page).lower() if name else True
     except Exception:
         return False
 
@@ -131,7 +132,8 @@ def recognized(page):
     """True when this page names the institution, i.e. Wiley knows who is paying for access."""
     name = (settings.S.get("institution_name") or "").strip().lower()
     try:
-        return bool(name) and name in page.inner_text("body")[:8000].lower()
+        from .browser import all_text
+        return bool(name) and name in all_text(page).lower()
     except Exception:
         return False
 

@@ -94,7 +94,7 @@ def test_adapter_use_route(monkeypatch, with_proxy, mod, env):
 
 
 def test_wiley_recognition_needs_institution_name(monkeypatch):
-    page = type("P", (), {"inner_text": lambda self, sel: "Welcome, Example University Library"})()
+    page = type("P", (), {"evaluate": lambda self, js: "Welcome, Example University Library"})()
     monkeypatch.setitem(settings.S, "institution_name", "")
     assert not wiley.can_recognize() and not wiley.recognized(page)
     monkeypatch.setitem(settings.S, "institution_name", "Example University")
