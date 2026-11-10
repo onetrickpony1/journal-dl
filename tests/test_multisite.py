@@ -41,11 +41,12 @@ class OtherRunner(FakeRunner):
             self.download(aid, r, self.issue_dir(issue))
 
 
-def pair(env, seed=1, **kw):
-    tmp, root, fast = env
+def pair(env, seed=1, data=None, root=None, **kw):
+    tmp, root0, fast = env
+    data, root = data or tmp / "data", root or root0
     runners = []
     for cls, db in ((FakeRunner, "fake.sqlite"), (OtherRunner, "other.sqlite")):
-        r = cls(None, Store(tmp / "data" / db), root, log=lambda *a: None, pacing=fast)
+        r = cls(None, Store(data / db), root, log=lambda *a: None, pacing=fast)
         r.pacer.sleep = lambda s: None
         runners.append((cls.LABEL, r, "1"))
     return Alternator(runners, log=lambda *a: None, rng=random.Random(seed), **kw), runners
@@ -57,22 +58,21 @@ def test_match_key_normalises_numbers():
     assert match_key({"volume": "12", "issue": "3"}) != match_key({"volume": "12", "issue": "4"})
 
 
-def test_alternates_and_uses_one_folder_per_issue(env):
+def test_alternates_and_uses_one_folder_per_issue(env, monkeypatch):
     seen = set()
     for seed in range(12):                      # over several runs both sites get used
-        alt, runners = pair(env, seed=seed)
+        # a fresh archive and databases per run (open databases can't be deleted on Windows)
+        data, root = env[0] / f"data{seed}", env[0] / f"archive{seed}"
+        root.mkdir()
+        monkeypatch.setenv("JOURNAL_DL_DATA", str(data))
+        alt, runners = pair(env, seed=seed, data=data, root=root)
         alt.run_journal()
         seen |= {label for label, r, _ in runners if r.fetched}
         # every PDF is in the preferred site's folders, whichever site fetched it
-        pdfs = sorted(p.relative_to(env[1]).as_posix() for p in env[1].rglob("*.pdf"))
+        pdfs = sorted(p.relative_to(root).as_posix() for p in root.rglob("*.pdf"))
         assert len(pdfs) == 6
         assert all(p.startswith(("Test Journal/2026/Vol 79 No 1 - Spring 2026/",
                                  "Test Journal/2026/Vol 79 No 2 - Summer 2026/")) for p in pdfs)
-        # reset for the next seed
-        for p in list(env[1].rglob("*.pdf")):
-            p.unlink()
-        for db in (env[0] / "data").glob("*.sqlite*"):
-            db.unlink()
     assert seen == {"Fake", "Other"}
 
 
