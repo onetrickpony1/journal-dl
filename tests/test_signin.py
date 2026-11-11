@@ -51,6 +51,7 @@ def proxy(monkeypatch):
     monkeypatch.setitem(settings.S, "login_hosts", ["login.uva.nl"])
     monkeypatch.setitem(settings.S, "access", "auto")
     monkeypatch.setattr(signin, "_done", False)
+    monkeypatch.setattr(signin, "direct", False)
     monkeypatch.setattr(notify, "send", lambda *a, **k: None)
 
 
@@ -91,3 +92,39 @@ def test_tandf_sees_hidden_access_line():
     page = type("P", (), {"evaluate": lambda self, js: "Log in ... Access provided by UVA Universiteitsbibliotheek SZ",
                           "inner_text": lambda self, sel: "Log in"})()
     assert tandf.signed_in(page)
+
+
+class CampusTab(Tab):
+    """On campus: the proxy recognises the network and sends the tab to the publisher's own address."""
+    def __init__(self):
+        super().__init__(0)
+
+    def goto(self, url, **kw):
+        self.url = "https://onlinelibrary.wiley.com/"
+
+
+def test_on_campus_the_proxy_lets_through_without_asking(proxy):
+    said = []
+    assert signin.sign_in_once(Ctx(CampusTab()), log=said.append, wait_s=0)
+    assert signin.direct and not any("Sign in once" in s for s in said)
+    assert signin.proxy_lets_through(CampusTab()) and not signin.proxy_lets_through(Tab(10**9))
+
+
+def test_joining_campus_while_waiting_ends_the_wait(proxy):
+    class LateCampus(Tab):
+        def wait_for_timeout(self, ms):
+            self.polls += 1
+            if self.polls >= 2:
+                self.url = "https://onlinelibrary.wiley.com/"
+    assert signin.sign_in_once(Ctx(LateCampus(10**9)), log=lambda *a: None)
+    assert signin.direct
+
+
+def test_choose_route_goes_direct_after_the_proxy_let_through(proxy, monkeypatch):
+    from journal_dl.sites import SITES
+    monkeypatch.setitem(settings.S, "institution_name", "")
+    monkeypatch.setattr(signin, "direct", True)
+    site = SITES["wiley"]
+    used = []
+    monkeypatch.setattr(site.m, "use_route", used.append)
+    assert site.choose_route(object(), quiet=True) == "direct" and used == ["direct"]

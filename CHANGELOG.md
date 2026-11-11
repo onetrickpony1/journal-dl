@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- **On campus a run no longer waits for a sign-in that never comes.** A library proxy that recognises the
+  campus network (or VPN) sends you straight to the publisher instead of asking you to sign in; journal-dl
+  kept waiting up to 30 minutes for a page through the proxy. That now counts as "no sign-in needed", and in
+  access mode `auto` the run goes direct, also for Wiley without `institution_name` (the mid-run check for a
+  lost campus connection then asks the proxy again instead of looking for the institution's name).
+
 ## 1.1.1 — 2026-11-11
 
 ### Fixes
