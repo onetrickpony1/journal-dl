@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.2 — 2026-11-11
 
 ### Fixes
 - **On campus a run no longer waits for a sign-in that never comes.** A library proxy that recognises the
