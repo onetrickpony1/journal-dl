@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.3 — 2026-11-11
 
 ### Fixes
 - **A "verify you are human" page no longer crashes the journal search.** Taylor & Francis can show
