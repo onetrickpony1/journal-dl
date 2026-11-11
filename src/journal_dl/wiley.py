@@ -291,6 +291,7 @@ def pdf_url(doi):
 
 
 def fetch_pdf(ctx, doi):
-    """-> (status, headers, body, final_url). Wiley serves /doi/pdfdirect directly in the signed-in session."""
-    resp = ctx.request.get(pdf_url(doi), timeout=120000)
-    return resp.status, resp.headers, resp.body(), resp.url
+    """-> (status, headers, body, final_url). Wiley serves /doi/pdfdirect directly in the signed-in session;
+    fetched by the browser itself (see browser.fetch_in_page)."""
+    from .browser import fetch_in_page, site_tab
+    return fetch_in_page(site_tab(ctx, BASE), pdf_url(doi))

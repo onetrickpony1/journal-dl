@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- **Downloads going direct (campus or VPN) no longer stop at a "verify you are human" check that isn't
+  there.** Wiley and Taylor & Francis PDFs were fetched with Playwright's own HTTP client, which Cloudflare
+  tells apart from the browser and answers with a check that shows in no tab, so nobody could complete it
+  (through the library proxy the proxy did the fetching, which hid this). PDFs are now fetched by the
+  browser window itself.
+
 ## 1.1.3 — 2026-11-11
 
 ### Fixes
