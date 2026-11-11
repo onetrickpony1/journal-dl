@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- **A "verify you are human" page no longer crashes the journal search.** Taylor & Francis can show
+  Cloudflare's "Just a moment..." page, especially when going direct on campus; `--easy` stopped with a
+  traceback. journal-dl still never tries to get past these: it now gives the page a few seconds to clear by
+  itself, then (in a terminal) asks you to complete it in the browser window and carries on. Without a
+  terminal it stops with a message, as before. The same wait applies when a site is first opened.
+
 ## 1.1.2 — 2026-11-11
 
 ### Fixes

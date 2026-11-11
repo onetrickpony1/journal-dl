@@ -349,8 +349,9 @@ def cmd_search(sites, a, text, quiet=False):
             try:
                 ctx, tab = site.session(p)
                 found[site] = site.search(tab, text)
-            except (site.AdapterError, SystemExit) as e:
-                print(f"{site.label}: could not search ({str(e)[:80]})")
+            except (site.AdapterError, getattr(site, "ChallengeRequired", site.AdapterError),
+                    getattr(site, "AuthRequired", site.AdapterError), SystemExit) as e:
+                print(f"{site.label}: could not search ({e})")
     for site, names in ({} if quiet else found).items():
         if len(sites) > 1:
             print(f"\n{site.label}:" + ("" if names else " none"))

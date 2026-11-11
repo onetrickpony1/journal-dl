@@ -13,12 +13,52 @@
     site.pick(tab, text)     -> (True, {"title", "id"}) or (False, [close matches])
     site.runner(ctx, store, root, **kw)
 """
+import os
+import sys
 import time
 from urllib.parse import quote
 
 from . import browser, ovid, paths, settings, signin, tandf, wiley
 
 SIGNIN_WAIT_S = 30 * 60
+CHALLENGE_SELF_S = 15           # a "Just a moment..." page often clears by itself within a few seconds
+CHALLENGE_WAIT_S = 10 * 60      # then the user may complete it in the window
+
+
+def _is_challenge_page(tab) -> bool:
+    try:
+        return tab.title().strip().lower().startswith("just a moment")
+    except Exception:
+        return True
+
+
+def wait_out_challenge(tab, label, wait_s=CHALLENGE_WAIT_S, self_s=CHALLENGE_SELF_S, log=print) -> bool:
+    """A site showed a 'verify you are human' check. journal-dl never tries to get past one: it waits for the
+    page to clear by itself and then, in a terminal, for the user to complete it in the browser window.
+    True once the page is past the check; False without a terminal or when the time is up."""
+    end = time.monotonic() + self_s
+    while time.monotonic() < end:
+        if not _is_challenge_page(tab):
+            return True
+        time.sleep(1)
+    if not (sys.stdin.isatty() and not os.environ.get("JOURNAL_DL_BACKGROUND")):
+        return False
+    from . import notify
+    log(f"{label} is showing a 'verify you are human' check: complete it yourself in the browser window "
+        f"(waiting up to {wait_s // 60} min)...")
+    notify.send("Check needed", f"Complete the {label} check in the downloader's browser window.")
+    try:
+        tab.bring_to_front()
+    except Exception:
+        pass
+    end = time.monotonic() + wait_s
+    while time.monotonic() < end:
+        if tab.is_closed():
+            return False
+        if not _is_challenge_page(tab):
+            return True
+        time.sleep(2)
+    return False
 
 
 class Site:
@@ -153,6 +193,7 @@ class PublisherSite(Site):
                                                                        mod.EXAMPLE_MONTH)
         self.example_issue, self.example_search = mod.EXAMPLE_ISSUE, mod.EXAMPLE_SEARCH
         self.AdapterError = mod.AdapterError
+        self.ChallengeRequired, self.AuthRequired = mod.ChallengeRequired, mod.AuthRequired
 
     def _tab(self, ctx):
         tabs = [t for t in ctx.pages if self.m.HOST_HINT in t.url]
@@ -210,8 +251,9 @@ class PublisherSite(Site):
             except m.AuthRequired:
                 pass
             except m.ChallengeRequired:
-                raise SystemExit(f"{m.LABEL} is showing a 'verify you are human' check. Complete it yourself in "
-                                 "the browser window, then run the command again.")
+                if not wait_out_challenge(tab, m.LABEL):
+                    raise SystemExit(f"{m.LABEL} is showing a 'verify you are human' check. Complete it yourself "
+                                     "in the browser window, then run the command again.")
         if not m.signed_in(tab):
             print(f"Sign in to {m.LABEL} through your institution in the browser window if asked "
                   "(waiting up to 30 min)...")
@@ -237,7 +279,13 @@ class PublisherSite(Site):
         return ctx, tab
 
     def search(self, tab, text):
-        return [r["title"] for r in self.m.search_journals(tab, text)]
+        try:
+            return [r["title"] for r in self.m.search_journals(tab, text)]
+        except self.m.ChallengeRequired:
+            if not wait_out_challenge(tab, self.label):
+                raise SystemExit(f"{self.label} is showing a 'verify you are human' check. Complete it yourself "
+                                 "in the browser window, then search again.")
+            return [r["title"] for r in self.m.search_journals(tab, text)]   # once more, now past the check
 
     def pick(self, tab, text):
         return self.m.pick_journal(tab, text)
