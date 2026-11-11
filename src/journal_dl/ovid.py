@@ -21,6 +21,10 @@ import re
 from urllib.parse import unquote
 
 HEADING_RE = re.compile(r"Volume\s+\S+\([^)]*\)[^\n]*?[A-Z][a-z]+\.?(?:/[A-Z][a-z]+)?\s+(?:\d{1,2},\s+)?\d{4}")
+# Journals dated by year only (quarterlies such as the Journal of Personnel Psychology) have a heading like
+# "Volume 25(4) pgs. 167-227 2026": no month; the year stands alone at the end of the line (so the end of a
+# page range such as 1001-1999 can't pass for it).
+HEADING_YEAR_RE = re.compile(r"^[ \t]*(Volume\s+\S+\([^)]*\)[^\n]*?\s(?:19|20)\d{2})[ \t]*$", re.M)
 AN_RE = re.compile(r"Counter5=TOC_[a-z_]+%7c([0-9A-Za-z-]+)%7c|Counter5=TOC_[a-z_]+\|([0-9A-Za-z-]+)\|")
 DOI_RE = re.compile(r"DOI:\s*(10\.\d{4,9}/\S+)", re.I)
 PAGES_RE = re.compile(r"^pgs?\.\s*(.+)$", re.M)
@@ -163,9 +167,19 @@ def list_issues(page):
     return out
 
 
+def heading_in(text):
+    """The issue heading in a TOC page's text: 'Volume 111(11) ... November 2026' or, for journals dated by
+    year only, 'Volume 25(4) pgs. 167-227 2026'. None when there is none."""
+    text = text.replace("\xa0", " ")
+    m = HEADING_RE.search(text)
+    if m:
+        return norm(m.group(0))
+    m = HEADING_YEAR_RE.search(text)
+    return norm(m.group(1)) if m else None
+
+
 def heading(page):
-    m = HEADING_RE.search(page.inner_text("body").replace("\xa0", " "))
-    return norm(m.group(0)) if m else None
+    return heading_in(page.inner_text("body"))
 
 
 def expected_heading_prefix(issue):
