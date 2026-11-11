@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.4 — 2026-11-11
+## 1.1.4 — 2026-11-12
 
 ### Fixes
 - **Downloads going direct (campus or VPN) no longer stop at a "verify you are human" check that isn't
@@ -8,6 +8,10 @@
   tells apart from the browser and answers with a check that shows in no tab, so nobody could complete it
   (through the library proxy the proxy did the fetching, which hid this). PDFs are now fetched by the
   browser window itself.
+- **Ovid journals dated by year only work.** Quarterlies such as the Journal of Personnel Psychology head
+  their issues "Volume 25(4) pgs. 167-227 2026", with no month. journal-dl didn't recognise that as an issue
+  heading, so opening the journal failed ("did not show an issue table of contents") and opening an issue
+  failed with "opened issue heading None != expected ...".
 
 ## 1.1.3 — 2026-11-11
 
