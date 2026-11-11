@@ -96,11 +96,12 @@ def candidates() -> list:
     return out
 
 
-def find_chrome():
+def find_chrome(p=None):
+    """The browser to use. Pass the running Playwright `p` when there is one (see bundled_chromium)."""
     for c in candidates():
         if c and os.path.isfile(c):
             return c
-    return bundled_chromium()
+    return bundled_chromium(p)
 
 
 def launch_args(exe, profile: Path) -> list:
@@ -112,12 +113,19 @@ def launch_args(exe, profile: Path) -> list:
     return [exe]
 
 
-def bundled_chromium():
-    """The private Chromium installed by `journal-dl --install-browser` (Playwright's build), if any."""
+def bundled_chromium(p=None):
+    """The private Chromium installed by `journal-dl --install-browser` (Playwright's build), if any.
+
+    Inside a `with sync_playwright() as p:` block, pass that `p`: Playwright's sync API can't be started a
+    second time there ("using Playwright Sync API inside the asyncio loop"), so a fresh sync_playwright()
+    would fail and the private Chromium would look missing whenever the window has to be started mid-run."""
     try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
+        if p is not None:
             path = p.chromium.executable_path
+        else:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as pw:
+                path = pw.chromium.executable_path
         return path if path and os.path.isfile(path) else None
     except Exception:
         return None
@@ -147,11 +155,12 @@ def alive(timeout=2) -> bool:
         return False
 
 
-def start(profile: Path = DEFAULT_PROFILE, url: str = "about:blank", wait_s: float = 20) -> bool:
-    """Start the dedicated browser window if it isn't running. Returns True when reachable."""
+def start(profile: Path = DEFAULT_PROFILE, url: str = "about:blank", wait_s: float = 20, p=None) -> bool:
+    """Start the dedicated browser window if it isn't running. Returns True when reachable.
+    `p`: the running Playwright, when called inside a sync_playwright() block."""
     if alive():
         return True
-    exe = find_chrome()
+    exe = find_chrome(p)
     if not exe:
         raise SystemExit("Could not find Google Chrome, Chromium or Microsoft Edge. Install one, or run "
                          f'journal-dl --install-browser, or set "chrome" to its path in {settings.path()}')
@@ -177,7 +186,7 @@ def connect(p):
     """Playwright BrowserContext of the running window (starting it if needed)."""
     if not alive():
         print("Starting the downloader's browser window...")
-        if not start():
+        if not start(p=p):
             raise SystemExit("The browser window did not start. Try again, or start it with: journal-dl --browser")
     return p.chromium.connect_over_cdp(cdp_url()).contexts[0]
 
@@ -188,9 +197,9 @@ def session(profile: Path = DEFAULT_PROFILE, headless: bool = False):
     from playwright.sync_api import sync_playwright
     profile.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
-        exe = find_chrome()
+        exe = find_chrome(p)
         if flatpak_id(exe):          # Playwright launches over a pipe, which can't reach into a Flatpak sandbox
-            exe = bundled_chromium()
+            exe = bundled_chromium(p)
         ctx = p.chromium.launch_persistent_context(str(profile), executable_path=exe, headless=headless,
                                                    accept_downloads=True, viewport=None)
         try:

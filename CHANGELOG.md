@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **The private Chromium from `--install-browser` now starts during a run.** When the browser window
+  wasn't already open, a run reported "Could not find Google Chrome, Chromium or Microsoft Edge" although
+  `--doctor` found the private Chromium: its location was looked up with a second Playwright session, which
+  Playwright doesn't allow inside the running one.
 - **Flatpak browsers on Linux.** Google Chrome, Chromium and Edge installed from Flathub are found, and are
   started with access to the downloader's profile folder (without it the sandbox kept the profile private and
   every sign-in was lost on restart). `"chrome"` in the settings also takes `flatpak run com.google.Chrome`.

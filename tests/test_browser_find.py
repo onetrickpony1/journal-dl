@@ -24,3 +24,14 @@ def test_resolve_flatpak_forms(tmp_path, monkeypatch):
               "flatpak run --branch=stable org.chromium.Chromium", want):
         assert browser._resolve(v) == want
     assert browser._resolve("") is None
+
+
+def test_bundled_chromium_found_inside_running_playwright():
+    """Regression: the window is started from inside sync_playwright(); a nested one fails, so the private
+    Chromium looked missing mid-run while --doctor (outside Playwright) found it."""
+    import pytest
+    from playwright.sync_api import sync_playwright
+    if not browser.bundled_chromium():
+        pytest.skip("no private Chromium installed")
+    with sync_playwright() as p:
+        assert browser.bundled_chromium(p) == p.chromium.executable_path
