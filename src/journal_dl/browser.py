@@ -214,5 +214,49 @@ def all_text(page) -> str:
     return page.evaluate("() => document.body ? document.body.textContent : ''") or ""
 
 
+_FETCH_JS = """async ([url, ms]) => {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), ms);
+    try {
+        const r = await fetch(url, {credentials: "include", signal: ctl.signal});
+        const buf = new Uint8Array(await r.arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+        const headers = {};
+        r.headers.forEach((v, k) => { headers[k] = v; });
+        return {status: r.status, headers, body: btoa(bin), url: r.url};
+    } finally {
+        clearTimeout(timer);
+    }
+}"""
+
+
+def fetch_in_page(page, url, timeout_s=120):
+    """GET `url` from inside `page` (same site, its cookies) -> (status, headers, body bytes, final url).
+
+    Use this, not Playwright's ctx.request, for anything a publisher's bot protection may look at: ctx.request
+    is Playwright's own HTTP client, which Cloudflare tells apart from the browser and answers with a
+    'verify you are human' page that shows in no tab, so nobody can complete it (seen on Wiley going direct;
+    through a library proxy the proxy does the fetching, which hid it)."""
+    import base64
+    try:
+        r = page.evaluate(_FETCH_JS, [url, int(timeout_s * 1000)])
+    except Exception as e:
+        if "abort" in str(e).lower():
+            return 0, {}, b"", url
+        raise
+    return r["status"], r["headers"], base64.b64decode(r["body"]), r["url"]
+
+
+def site_tab(ctx, base):
+    """An open tab on `base` (a site's address) for fetching from; opens one when there is none."""
+    for pg in reversed(ctx.pages):
+        if not pg.is_closed() and pg.url.startswith(base):
+            return pg
+    pg = ctx.new_page()
+    pg.goto(base + "/", wait_until="domcontentloaded", timeout=60000)
+    return pg
+
+
 def current_page(ctx):
     return ctx.pages[-1] if ctx.pages else ctx.new_page()

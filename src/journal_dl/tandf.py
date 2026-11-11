@@ -216,7 +216,9 @@ def fetch_pdf(ctx, doi, timeout_s=45):
     """-> (status, headers, body, final_url).
     T&F's viewer (/doi/epdf/<doi>) requests /doi/pdfdirect/<doi>?hmac=... with a one-time signature it
     generates itself. We open that viewer in its own tab, take the request it makes, and fetch the same
-    signed address in the signed-in session (with the viewer as referrer). No URL is constructed by us."""
+    signed address from that viewer tab (so the browser itself fetches it, with the viewer as referrer; see
+    browser.fetch_in_page). No URL is constructed by us."""
+    from .browser import fetch_in_page
     import time
     viewer = pdf_url(doi)
     tab = ctx.new_page()
@@ -237,8 +239,6 @@ def fetch_pdf(ctx, doi, timeout_s=45):
         if not seen:
             body = tab.content().encode()[:20000]
             return (resp.status if resp else 0), {"content-type": "text/html"}, body, tab.url
-        signed = seen[0].url
+        return fetch_in_page(tab, seen[0].url)
     finally:
         tab.close()
-    r = ctx.request.get(signed, headers={"Referer": viewer}, timeout=120000)
-    return r.status, r.headers, r.body(), r.url
