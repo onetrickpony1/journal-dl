@@ -19,6 +19,14 @@ from pypdf import PdfWriter
 
 from journal_dl import probe
 
+
+def launch_chromium(p):
+    """Installed Chrome when there is one (/opt/google/chrome), else Playwright's own Chromium."""
+    try:
+        return p.chromium.launch(channel="chrome", headless=True)
+    except Exception:
+        return p.chromium.launch(channel="chromium", headless=True)   # the full build --install-browser gets
+
 FIX = Path(__file__).parent / "fixtures"
 
 
@@ -53,7 +61,7 @@ def server():
 
 def test_probe_three_channels(server, tmp_path):
     with sync_playwright() as p:
-        b = p.chromium.launch(channel="chrome", headless=True)
+        b = launch_chromium(p)
         ctx = b.new_context(accept_downloads=True)
         page = ctx.new_page(); page.goto(server + "/issue?SESSION=secret")
         rep = probe.run(ctx, page, tmp_path, count=3, delay_s=0, timeout_s=5)

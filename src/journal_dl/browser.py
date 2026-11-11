@@ -10,9 +10,11 @@
 
 The user signs in there by hand (the tools never see passwords). Every command connects to the
 same window over the Chrome DevTools Protocol on 127.0.0.1, so a sign-in is shared by all sites.
-Works with Google Chrome, Chromium or Microsoft Edge on Linux, macOS and Windows.
+Works with Google Chrome, Chromium or Microsoft Edge on Linux, macOS and Windows, including the
+Flatpak builds on Linux.
 """
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -32,11 +34,45 @@ def cdp_url() -> str:
         f"http://127.0.0.1:{settings.S.get('cdp_port', 9333)}"
 
 
+# Flatpak builds of the supported browsers (Linux). They are not on PATH under their usual names, only as
+# their app id in .../flatpak/exports/bin, and they run sandboxed (see launch_args).
+FLATPAK_IDS = ("com.google.Chrome", "org.chromium.Chromium", "com.microsoft.Edge")
+FLATPAK_EXPORTS = (Path.home() / ".local/share/flatpak/exports/bin", Path("/var/lib/flatpak/exports/bin"))
+
+
+def flatpak_id(exe):
+    """The Flatpak app id when `exe` is a Flatpak browser launcher, else None."""
+    if not exe:
+        return None
+    name = os.path.basename(str(exe))
+    return name if name in FLATPAK_IDS or "/flatpak/exports/bin/" in str(exe) else None
+
+
+def _resolve(value):
+    """A browser given in settings as a path, a command name, an app id or 'flatpak run <id>' -> a path, or None."""
+    if not value:
+        return None
+    value = os.path.expanduser(str(value).strip())
+    if os.path.isfile(value):
+        return value
+    words = shlex.split(value)
+    if words and os.path.basename(words[0]) == "flatpak":
+        words = [w for w in words[1:] if w != "run" and not w.startswith("-")]
+    if len(words) == 1:
+        w = words[0]
+        if w in FLATPAK_IDS or ("." in w and os.sep not in w):
+            for d in FLATPAK_EXPORTS:
+                if (d / w).is_file():
+                    return str(d / w)
+        return shutil.which(w)
+    return None
+
+
 def candidates() -> list:
     """Likely browser locations for this OS, best first."""
     out = []
     if settings.S.get("chrome"):
-        out.append(settings.S["chrome"])
+        out.append(_resolve(settings.S["chrome"]) or settings.S["chrome"])
     if sys.platform == "win32":
         roots = [os.environ.get(v) for v in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")]
         for r in filter(None, roots):
@@ -49,10 +85,14 @@ def candidates() -> list:
             out += [f"/Applications/{app}.app/Contents/MacOS/{exe}",
                     str(Path.home() / f"Applications/{app}.app/Contents/MacOS/{exe}")]
     else:
-        for name in ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "microsoft-edge"):
+        for name in ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser",
+                     "microsoft-edge-stable", "microsoft-edge"):
             w = shutil.which(name)
             if w:
                 out.append(w)
+        if shutil.which("flatpak"):
+            for app in FLATPAK_IDS:
+                out += [str(d / app) for d in FLATPAK_EXPORTS]
     return out
 
 
@@ -61,6 +101,15 @@ def find_chrome():
         if c and os.path.isfile(c):
             return c
     return bundled_chromium()
+
+
+def launch_args(exe, profile: Path) -> list:
+    """The command that starts `exe` with `profile`. A Flatpak browser can't see ~/.local/share, so without
+    --filesystem it silently keeps the profile inside its sandbox and every sign-in is lost on restart."""
+    app = flatpak_id(exe)
+    if app:
+        return ["flatpak", "run", f"--filesystem={profile}", app]
+    return [exe]
 
 
 def bundled_chromium():
@@ -108,7 +157,7 @@ def start(profile: Path = DEFAULT_PROFILE, url: str = "about:blank", wait_s: flo
                          f'journal-dl --install-browser, or set "chrome" to its path in {settings.path()}')
     profile.mkdir(parents=True, exist_ok=True)
     port = cdp_url().rsplit(":", 1)[1]
-    args = [exe, f"--user-data-dir={profile}", f"--remote-debugging-port={port}",
+    args = launch_args(exe, profile) + [f"--user-data-dir={profile}", f"--remote-debugging-port={port}",
             "--remote-debugging-address=127.0.0.1", "--no-first-run", "--no-default-browser-check", url]
     kw = dict(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
     if os.name == "nt":
@@ -140,6 +189,8 @@ def session(profile: Path = DEFAULT_PROFILE, headless: bool = False):
     profile.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
         exe = find_chrome()
+        if flatpak_id(exe):          # Playwright launches over a pipe, which can't reach into a Flatpak sandbox
+            exe = bundled_chromium()
         ctx = p.chromium.launch_persistent_context(str(profile), executable_path=exe, headless=headless,
                                                    accept_downloads=True, viewport=None)
         try:

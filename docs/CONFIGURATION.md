@@ -30,7 +30,7 @@
 | `institution_name` | the name Wiley shows when you are signed in (empty = don't check; also needed for `access: auto` to go direct on Wiley) |
 | `library_journal_search` | your catalogue's journal search URL ending where the search text goes; used to open Ovid |
 | `library_ovid_door` | any journal your catalogue opens on Ovid ("Available Online"); used once to get into Ovid |
-| `chrome` | path to Chrome, Chromium or Edge, if it isn't found automatically |
+| `chrome` | path to Chrome, Chromium or Edge, if it isn't found automatically; a Flatpak browser may be given as its app id (`com.google.Chrome`) or `flatpak run com.google.Chrome` |
 | `cdp_port` | local port of the downloader's browser window (127.0.0.1 only) |
 | `notify` | desktop notifications on/off |
 | `ntfy_topic` | optional: also send notifications to this [ntfy](https://ntfy.sh) topic (journal name and counts only) |
