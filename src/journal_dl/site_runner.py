@@ -10,7 +10,7 @@
 The site module (wiley.py, tandf.py) supplies the page reading."""
 import time
 
-from . import notify, settings, wiley
+from . import notify, settings, signin, wiley
 from .engine import AUTH_WAIT_S, CHALLENGE_MSG, BaseRunner, Paused, _in_years, _retry_after_value, sleep_i
 
 RECHECK_S = 5 * 60      # after a check finds the institution still recognised, trust it this long
@@ -61,8 +61,11 @@ class SiteRunner(BaseRunner):
         self.pacer.wait_page()
         tab = self.ctx.new_page()
         try:
-            self.site.goto(tab, "/")
-            ok = self.site.recognized(tab)
+            if getattr(self.site, "can_recognize", lambda: True)():
+                self.site.goto(tab, "/")
+                ok = self.site.recognized(tab)
+            else:                       # the site can't say (no institution_name): ask the proxy instead
+                ok = signin.proxy_lets_through(tab)
         except Exception:
             ok = False
         finally:

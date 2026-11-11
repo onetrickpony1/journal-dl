@@ -169,6 +169,12 @@ class PublisherSite(Site):
         if mode in ("proxy", "direct"):
             m.use_route(mode)
             return mode
+        if signin.direct:               # the proxy itself passed us on to the publishers: no proxy needed
+            m.use_route("direct")
+            if not quiet:
+                print(f"{m.LABEL}: the library proxy sent you straight through (campus or VPN), so it is "
+                      "not needed.")
+            return "direct"
         if not m.can_recognize():
             m.use_route("proxy")
             if not quiet:
