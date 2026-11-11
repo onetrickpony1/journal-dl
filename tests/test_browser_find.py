@@ -6,7 +6,8 @@ from journal_dl import browser
 def test_flatpak_launcher_gets_profile_access():
     exe = "/var/lib/flatpak/exports/bin/com.google.Chrome"
     assert browser.flatpak_id(exe) == "com.google.Chrome"
-    assert browser.launch_args(exe, Path("/p")) == ["flatpak", "run", "--filesystem=/p", "com.google.Chrome"]
+    prof = Path("/p")
+    assert browser.launch_args(exe, prof) == ["flatpak", "run", f"--filesystem={prof}", "com.google.Chrome"]
 
 
 def test_plain_binary_unchanged():
