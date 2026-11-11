@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.4 — 2026-11-11
 
 ### Fixes
 - **Downloads going direct (campus or VPN) no longer stop at a "verify you are human" check that isn't
