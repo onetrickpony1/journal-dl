@@ -6,4 +6,4 @@
 # or (at your option) any later version. It is distributed WITHOUT ANY WARRANTY; without even the implied
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the LICENSE file and LEGAL.md.
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
