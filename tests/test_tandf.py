@@ -11,6 +11,14 @@ from playwright.sync_api import sync_playwright
 
 from journal_dl import tandf
 
+
+def launch_chromium(p):
+    """Installed Chrome when there is one (/opt/google/chrome), else Playwright's own Chromium."""
+    try:
+        return p.chromium.launch(channel="chrome", headless=True)
+    except Exception:
+        return p.chromium.launch(channel="chromium", headless=True)   # the full build --install-browser gets
+
 TOC = """<html><body>
 <div class="tocContent">
  <div class="articleEntry"><div class="tocArticleEntry include-metrics-panel"><span class="article-type">Editorial</span>
@@ -36,7 +44,7 @@ LOI = """<html><head><title>List of issues Journal X</title></head><body>
 
 
 def _page(p, html):
-    b = p.chromium.launch(channel="chrome", headless=True)
+    b = launch_chromium(p)
     pg = b.new_page()
     pg.set_content(html)
     return b, pg

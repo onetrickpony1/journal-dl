@@ -11,6 +11,14 @@ from playwright.sync_api import sync_playwright
 
 from journal_dl import wiley
 
+
+def launch_chromium(p):
+    """Installed Chrome when there is one (/opt/google/chrome), else Playwright's own Chromium."""
+    try:
+        return p.chromium.launch(channel="chrome", headless=True)
+    except Exception:
+        return p.chromium.launch(channel="chromium", headless=True)   # the full build --install-browser gets
+
 TOC = """<html><body><div class="issue-items-container bulkDownloadWrapper">
 <h3 class="toc__heading section__header to-section">ISSUE INFORMATION</h3>
 <div class="issue-item"><span class="doi-access-wrapper">Free Access</span>
@@ -44,7 +52,7 @@ class FakePage:
 def test_parse_issue(monkeypatch):
     monkeypatch.setattr(wiley, "goto", lambda page, path, settle=0: page.set_content(TOC))
     with sync_playwright() as p:
-        b = p.chromium.launch(channel="chrome", headless=True)
+        b = launch_chromium(p)
         page = b.new_page()
         rows = wiley.parse_issue(page, {"toc": "/toc/x/2026/1/1"})
         b.close()

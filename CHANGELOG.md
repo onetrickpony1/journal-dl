@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Flatpak browsers on Linux.** Google Chrome, Chromium and Edge installed from Flathub are found, and are
+  started with access to the downloader's profile folder (without it the sandbox kept the profile private and
+  every sign-in was lost on restart). `"chrome"` in the settings also takes `flatpak run com.google.Chrome`.
+  Microsoft Edge installed as `microsoft-edge-stable` is found too.
+
 ## 1.1.0 — 2026-11-10
 
 ### Signing in and first run
