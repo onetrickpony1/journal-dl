@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.1.1 — 2026-11-11
 
+### Fixes
 - **The private Chromium from `--install-browser` now starts during a run.** When the browser window
   wasn't already open, a run reported "Could not find Google Chrome, Chromium or Microsoft Edge" although
   `--doctor` found the private Chromium: its location was looked up with a second Playwright session, which
