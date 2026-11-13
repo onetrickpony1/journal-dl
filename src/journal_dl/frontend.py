@@ -523,11 +523,53 @@ def cmd_following():
 
 
 # ---------------------------------------------------------------- guide
+def ask_folder(a, ask=input):
+    """The guide says where the PDFs go and offers to change it. A folder typed here is saved, like --setup's,
+    until it is changed again ('default' goes back to Documents/Journal Downloads). Returns the folder."""
+    if a.output or os.environ.get("JOURNAL_DL_OUTPUT") or os.environ.get("OVID_ARCHIVE_ROOT"):
+        root = Path(a.output) if a.output else settings.output_dir()
+        print(f"PDFs go to: {system.show_path(root)}" + ("" if a.output else "  (set by JOURNAL_DL_OUTPUT)"))
+        return root
+    cur = settings.output_dir()
+    print(f"PDFs go to: {system.show_path(cur)}")
+    while True:
+        try:
+            ans = ask("Enter = keep this folder, or type another one ('default' = "
+                      f"{settings.paths.default_output()}): ").strip()
+        except EOFError:
+            ans = ""
+        if not ans:
+            return cur
+        new = settings.paths.default_output() if ans.lower() == "default" else \
+            Path(os.path.expandvars(ans.strip("'\""))).expanduser().resolve()
+        if new == cur:
+            return cur
+        if new.exists() and not new.is_dir():
+            print(f"  {new} is a file, not a folder.")
+            continue
+        if not new.exists():
+            try:
+                new.mkdir(parents=True)
+                print(f"  created {new}")
+            except OSError as e:
+                print(f"  could not create {new}: {e}")
+                continue
+        value = None if new == settings.paths.default_output() else str(new)
+        settings.save({"output": value})
+        settings.S["output"] = value
+        print(f"  Saved: from now on PDFs go to {system.show_path(new)} (change it here or with --setup).")
+        if cur.is_dir() and any(cur.iterdir()):
+            print(f"  Journals already downloaded stay in {cur}; move them over too, or journal-dl downloads\n"
+                  "  those issues again when you continue or update them.")
+        return new
+
+
 def easy(a, site=None):
     from .speed_ui import ask_speed
     name = site.prog if site else "journal-dl"
     where = site.label if site else "Wiley, Taylor & Francis and Ovid"
     print(f"{name} guide — download journal articles from {where} with your library sign-in.\n")
+    ask_folder(a)
     r = offer_resume(a, site)
     if r is not None:
         return r
