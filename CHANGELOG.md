@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.5 — 2026-11-13
+
+### Fixes
+- **The guide (`--easy`) now says where your PDFs go, and lets you change it.** It used to mention the
+  folder only in one easy-to-miss line. It now starts with "PDFs go to: ...": press Enter to keep that folder,
+  or type another one, which is saved until you change it again (`default` goes back to Documents/Journal
+  Downloads). If you move to a new folder, journals already downloaded stay in the old one; move them over,
+  or they are downloaded again when you continue or update them.
+- **No more "fontTools is required..." messages after every download.** These came from the PDF library
+  journal-dl uses to check each file, and were harmless; they are no longer shown.
+- **journal-dl closes the browser tabs it no longer needs.** Each run left a few tabs open, so after a while
+  the window had many. When a command finishes, the tabs it opened are closed, along with empty tabs and
+  publisher tabs left by earlier runs. One Ovid tab stays open, so Ovid stays signed in, and tabs you
+  opened yourself on other sites are left alone.
+
 ## 1.1.4 — 2026-11-12
 
 ### Fixes
