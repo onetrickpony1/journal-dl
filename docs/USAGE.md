@@ -74,7 +74,7 @@ Running a command with no options in a terminal also offers to continue an unfin
 
 | | |
 |---|---|
-| `--easy` | the guide: search, choose the journal and years, speed, follow, pick issues. Remembers your answers |
+| `--easy` | the guide: shows where the PDFs go (Enter keeps that folder; a folder you type is saved until you change it, `default` goes back to Documents/Journal Downloads), then search, choose the journal and years, speed, follow, pick issues. Remembers your answers |
 | `--background` | start the same download detached from the terminal; `--log` shows its progress |
 | `--follow` / `--unfollow` / `--following` | keep a list of journals |
 | `--update` | download new issues (`--new`) of every followed journal; in `wiley-dl` etc. only that site's journals |

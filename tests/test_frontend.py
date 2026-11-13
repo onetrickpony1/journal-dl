@@ -107,3 +107,47 @@ def test_settings_proxy_naming(monkeypatch):
     assert settings.proxied("www.tandfonline.com") == "https://www-tandfonline-com.proxy.library.example.edu"
     monkeypatch.setitem(settings.S, "proxy", "")
     assert settings.proxied("onlinelibrary.wiley.com") == "https://onlinelibrary.wiley.com"
+
+
+# ---- issue #11: the guide says where PDFs go and lets you change it
+@pytest.fixture
+def folder_cfg(cfg, monkeypatch):
+    from journal_dl import paths
+    monkeypatch.delenv("JOURNAL_DL_OUTPUT", raising=False)
+    monkeypatch.delenv("OVID_ARCHIVE_ROOT", raising=False)
+    monkeypatch.setattr(paths, "default_output", lambda: cfg / "Documents" / "Journal Downloads")
+    monkeypatch.setitem(settings.S, "output", None)
+    return cfg
+
+
+def answers(*seq):
+    it = iter(seq)
+    return lambda prompt: next(it)
+
+
+def test_guide_keeps_folder_on_enter(folder_cfg, capsys):
+    a = frontend.build_parser().parse_args(["--easy"])
+    assert frontend.ask_folder(a, answers("")) == folder_cfg / "Documents" / "Journal Downloads"
+    assert "PDFs go to:" in capsys.readouterr().out
+    assert not settings.path().exists()                   # nothing saved
+
+
+def test_guide_saves_typed_folder_until_reset(folder_cfg, monkeypatch):
+    a = frontend.build_parser().parse_args(["--easy"])
+    monkeypatch.chdir(folder_cfg)
+    new = frontend.ask_folder(a, answers("papers"))      # relative: from the current folder
+    assert new == (folder_cfg / "papers").resolve() and new.is_dir()
+    assert settings.load()["output"] == str(new) and settings.output_dir() == new
+    assert frontend.ask_folder(a, answers("default")) == folder_cfg / "Documents" / "Journal Downloads"
+    assert settings.load()["output"] is None
+
+
+def test_guide_rejects_a_file_and_asks_again(folder_cfg):
+    a = frontend.build_parser().parse_args(["--easy"])
+    (folder_cfg / "f.txt").write_text("x")
+    assert frontend.ask_folder(a, answers(str(folder_cfg / "f.txt"), "")) == settings.output_dir()
+
+
+def test_guide_does_not_ask_with_dash_o(folder_cfg):
+    a = frontend.build_parser().parse_args(["--easy", "-o", str(folder_cfg / "x")])
+    assert frontend.ask_folder(a, answers()) == folder_cfg / "x"     # no input() call
