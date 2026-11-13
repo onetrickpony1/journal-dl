@@ -22,7 +22,7 @@ from pathlib import Path
 
 from . import __version__, browser, files, notify, pacing, settings, signin, state, system
 from .selection import make_confirm, parse_when
-from .sites import ORDER, SITES
+from .sites import ORDER, SITES, tidy_tabs
 
 EXIT_NOT_FOUND, EXIT_PAUSED, EXIT_PAGE, EXIT_CTRL_C = 1, 2, 3, 130
 
@@ -224,11 +224,14 @@ def download(site, a, journal, years=None, issue=None, month=None, pick=False, w
             stack.enter_context(RunLock(s.db.with_suffix(".lock")))
         p = stack.enter_context(sync_playwright())
         opened = []                                  # [(site, ctx, journal match)]
+        ctxs = []
+        stack.callback(lambda: ctxs and tidy_tabs(ctxs[0]))     # before Playwright stops (LIFO)
         for s in sites:
             if len(sites) > 1:
                 print(f"Opening {s.label}...")
             try:
                 ctx, tab = s.session(p)
+                ctxs.append(ctx)
                 ok, res = s.pick(tab, journal)
             except (s.AdapterError, SystemExit) as e:
                 if s is site and len(sites) == 1:
@@ -345,6 +348,7 @@ def cmd_search(sites, a, text, quiet=False):
     from playwright.sync_api import sync_playwright
     found = {}
     with sync_playwright() as p:
+        ctx = None
         for site in sites:
             try:
                 ctx, tab = site.session(p)
@@ -352,6 +356,8 @@ def cmd_search(sites, a, text, quiet=False):
             except (site.AdapterError, getattr(site, "ChallengeRequired", site.AdapterError),
                     getattr(site, "AuthRequired", site.AdapterError), SystemExit) as e:
                 print(f"{site.label}: could not search ({e})")
+        if ctx is not None and not quiet:     # quiet: the guide downloads next and reuses the open tabs
+            tidy_tabs(ctx)
     for site, names in ({} if quiet else found).items():
         if len(sites) > 1:
             print(f"\n{site.label}:" + ("" if names else " none"))
@@ -491,7 +497,10 @@ def cmd_follow(a, sites):
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         ctx, tab = site.session(p)
-        ok, res = site.pick(tab, a.journal)
+        try:
+            ok, res = site.pick(tab, a.journal)
+        finally:
+            tidy_tabs(ctx)
     if not ok:
         print(f"No {site.label} journal matches {a.journal!r} exactly."
               + ("\nDid you mean:\n  " + "\n  ".join(res[:10]) if res else ""))

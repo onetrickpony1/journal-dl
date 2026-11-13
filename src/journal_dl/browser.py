@@ -253,10 +253,52 @@ def site_tab(ctx, base):
     for pg in reversed(ctx.pages):
         if not pg.is_closed() and pg.url.startswith(base):
             return pg
-    pg = ctx.new_page()
+    pg = new_tab(ctx)
     pg.goto(base + "/", wait_until="domcontentloaded", timeout=60000)
     return pg
 
 
 def current_page(ctx):
     return ctx.pages[-1] if ctx.pages else ctx.new_page()
+
+
+# --- tabs ----------------------------------------------------------------------------------------
+_opened = []                    # tabs this process opened (see new_tab)
+BLANK = ("about:blank", "chrome://newtab", "chrome://new-tab-page", "edge://newtab", "chrome-search://")
+
+
+def new_tab(ctx):
+    """ctx.new_page(), remembered so tidy_tabs() closes it once the command is done with it."""
+    pg = ctx.new_page()
+    _opened.append(pg)
+    return pg
+
+
+def tidy_tabs(ctx, hints=(), keep_hint="ovidweb.cgi"):
+    """Close the tabs journal-dl left open: the ones this process opened, empty tabs, and tabs on the
+    publishers' sites (`hints`: parts of their addresses), which earlier runs may have left. The browser
+    outlives every command, so without this each run added a few tabs. Other tabs (the user's) stay.
+
+    One tab whose address contains `keep_hint` stays open: Ovid keeps its session in the tab, and without it
+    the next run has to go through the library again. The window's last tab is never closed either (that
+    would quit the browser). Returns the number of tabs closed."""
+    try:
+        live = [pg for pg in ctx.pages if not pg.is_closed()]
+    except Exception:                   # the browser is gone: nothing to tidy
+        return 0
+    mine = [pg for pg in live if pg in _opened or not pg.url or pg.url.startswith(BLANK)
+            or any(h in pg.url for h in hints)]
+    keep = next((pg for pg in reversed(mine) if keep_hint and keep_hint in pg.url), None)
+    if keep is None and mine and len(mine) == len(live):
+        keep = mine[-1]
+    closed = 0
+    for pg in mine:
+        if pg is keep:
+            continue
+        try:
+            pg.close()
+            closed += 1
+        except Exception:
+            pass
+    _opened[:] = [pg for pg in _opened if not pg.is_closed()]
+    return closed
