@@ -8,10 +8,17 @@
 
 """PDF validation: MIME/extension alone is never enough."""
 import hashlib
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from pypdf import PdfReader
+
+# pypdf logs a WARNING whenever it works around something in a PDF (e.g. "fontTools is required to
+# fully parse the encoding of a CFF Type1 font..."). With no logging set up, Python prints these to
+# stderr on every download. They are harmless here: check_pdf only needs the page count and a little
+# page-1 text for the identity hint, and reports a PDF it can't read itself. Keep real errors.
+logging.getLogger("pypdf").setLevel(logging.ERROR)
 
 
 @dataclass

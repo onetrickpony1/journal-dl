@@ -27,6 +27,15 @@ def test_valid_pdf(tmp_path):
     assert c.ok and c.pages == 1 and len(c.sha256) == 64
 
 
+def test_pypdf_warnings_quiet():
+    # issue #12: pypdf's "fontTools is required..." warnings were printed on every download
+    import logging
+    import journal_dl.validate  # noqa: F401  (sets the level on import)
+    log = logging.getLogger("pypdf._cmap")
+    assert not log.isEnabledFor(logging.WARNING)
+    assert log.isEnabledFor(logging.ERROR)
+
+
 def test_html_masquerading_rejected(tmp_path):
     p = tmp_path / "a.pdf"; p.write_text("<!DOCTYPE html><html>Session expired</html>")
     c = check_pdf(p)
