@@ -385,7 +385,7 @@ def cmd_status(sites, a):
             any_rows = True
             got = sum(s["validated_files"] for _, s in issues)
             of = sum(s["pdf_eligible"] for _, s in issues)
-            print(f"\n{j['title']}  ({site.label}) — {got}/{of} PDFs")
+            print(f"\n{j['title']}  ({site.label}): {got}/{of} PDFs")
             for i, s in issues:
                 extra = []
                 if s["failed"]:
@@ -403,7 +403,7 @@ def cmd_status(sites, a):
         print(f"\nUnfinished: {lr['journal']} ({' + '.join(SITES[n].label for n in lr.get('sites') or [lr['site']])})"
               + (f", stopped in {lr['where']}" if lr.get("where") else "")
               + (f" ({lr['done']}/{lr['total']})" if lr.get("total") else "")
-              + (f" — {lr['reason']}" if lr.get("reason") else "") + ".  Continue with --resume")
+              + (f": {lr['reason']}" if lr.get("reason") else "") + ".  Continue with --resume")
     print(f"\nArchive folder: {system.show_path(settings.output_dir() if not a.output else Path(a.output))}")
 
 
@@ -568,7 +568,7 @@ def easy(a, site=None):
     from .speed_ui import ask_speed
     name = site.prog if site else "journal-dl"
     where = site.label if site else "Wiley, Taylor & Francis and Ovid"
-    print(f"{name} guide — download journal articles from {where} with your library sign-in.\n")
+    print(f"{name} guide: download journal articles from {where} with your library sign-in.\n")
     ask_folder(a)
     r = offer_resume(a, site)
     if r is not None:

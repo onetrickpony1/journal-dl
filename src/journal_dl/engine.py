@@ -218,7 +218,7 @@ def write_issue_files(store, issue_id, issue, idir: Path, source="journal-dl"):
     problems = [a for a in arts if a["state"] != "complete"]
     if problems:
         lines += ["", "## Not downloaded", ""] + [
-            f"- #{a['sequence']} {a['title']} — {a['state']}" + (f" ({a['last_error']})" if a["last_error"] else "")
+            f"- #{a['sequence']} {a['title']}: {a['state']}" + (f" ({a['last_error']})" if a["last_error"] else "")
             for a in problems]
     _atomic_write(meta / f"{idir.name}.md", "\n".join(lines) + "\n")
 

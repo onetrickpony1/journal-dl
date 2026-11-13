@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.5 — 2026-11-13
+## 1.1.5 - 2026-11-13
 
 ### Fixes
 - **The guide (`--easy`) now says where your PDFs go, and lets you change it.** It used to mention the
@@ -15,7 +15,7 @@
   publisher tabs left by earlier runs. One Ovid tab stays open, so Ovid stays signed in, and tabs you
   opened yourself on other sites are left alone.
 
-## 1.1.4 — 2026-11-12
+## 1.1.4 - 2026-11-12
 
 ### Fixes
 - **Downloads going direct (campus or VPN) no longer stop at a "verify you are human" check that isn't
@@ -28,7 +28,7 @@
   heading, so opening the journal failed ("did not show an issue table of contents") and opening an issue
   failed with "opened issue heading None != expected ...".
 
-## 1.1.3 — 2026-11-11
+## 1.1.3 - 2026-11-11
 
 ### Fixes
 - **A "verify you are human" page no longer crashes the journal search.** Taylor & Francis can show
@@ -37,7 +37,7 @@
   itself, then (in a terminal) asks you to complete it in the browser window and carries on. Without a
   terminal it stops with a message, as before. The same wait applies when a site is first opened.
 
-## 1.1.2 — 2026-11-11
+## 1.1.2 - 2026-11-11
 
 ### Fixes
 - **On campus a run no longer waits for a sign-in that never comes.** A library proxy that recognises the
@@ -46,7 +46,7 @@
   access mode `auto` the run goes direct, also for Wiley without `institution_name` (the mid-run check for a
   lost campus connection then asks the proxy again instead of looking for the institution's name).
 
-## 1.1.1 — 2026-11-11
+## 1.1.1 - 2026-11-11
 
 ### Fixes
 - **The private Chromium from `--install-browser` now starts during a run.** When the browser window
@@ -58,7 +58,7 @@
   every sign-in was lost on restart). `"chrome"` in the settings also takes `flatpak run com.google.Chrome`.
   Microsoft Edge installed as `microsoft-edge-stable` is found too.
 
-## 1.1.0 — 2026-11-10
+## 1.1.0 - 2026-11-10
 
 ### Signing in and first run
 - **One sign-in for every site.** With a library proxy, a run first checks the proxy's sign-in and, if needed,
@@ -90,7 +90,7 @@
 - Custom speed (`--easy`): pressing Enter at "Only download between" with no hours set no longer repeats
   the question forever.
 
-## 1.0.0 — 2026-11-09
+## 1.0.0 - 2026-11-09
 
 First public version.
 
