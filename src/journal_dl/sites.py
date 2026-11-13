@@ -115,7 +115,7 @@ class OvidSite(Site):
         works as the door); else Ovid's own start page, through the proxy when there is one (Ovid recognises
         the institution by the proxy's or campus address); else wait for the user to open Ovid."""
         search, door = settings.S.get("library_journal_search"), settings.S.get("library_ovid_door")
-        page = ctx.new_page()
+        page = browser.new_tab(ctx)
         if search and door:
             page.goto(search + quote(door))
             try:
@@ -243,7 +243,7 @@ class PublisherSite(Site):
         m = self.m
         ctx = browser.connect(p)
         signin.sign_in_once(ctx)
-        tab = self._tab(ctx) or ctx.new_page()
+        tab = self._tab(ctx) or browser.new_tab(ctx)
         self.choose_route(tab)
         if not self._on_site(tab):
             try:
@@ -315,3 +315,8 @@ ORDER = ("wiley", "tandf", "ovid")          # journal-dl tries publishers' own s
 
 def get(name):
     return SITES[name]
+
+
+def tidy_tabs(ctx):
+    """Close the tabs journal-dl no longer needs, once a command is done (see browser.tidy_tabs)."""
+    return browser.tidy_tabs(ctx, hints=(wiley.HOST_HINT, tandf.HOST_HINT, "ovid"), keep_hint="ovidweb.cgi")
